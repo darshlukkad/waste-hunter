@@ -5,144 +5,103 @@
 
 ---
 
-## Current Status (as of Feb 2025)
+## Current Status (as of Feb 2026)
 
-### ✅ Completed
-| Phase | What's Done |
+### ✅ Fully Working
+| Area | Status |
 |---|---|
-| **Phase 1 — Core Agent** | FastAPI backend, Bedrock agent loop, 5 MCP tools, Neo4j blast radius, MiniMax IaC rewriter, GitHub PR creator |
-| **Phase 2 — Frontend** | Next.js dashboard, trigger detail page, CopilotKit self-hosted runtime, approve/reject UI with generative cards |
-| **Phase 3 — Real AWS Infra** | `waste-hunter-dummy` repo deployed: 3× t3.micro EC2 instances (ASG min=3, max=6), ALB, CloudWatch alarms, Datadog agent on each instance |
-
-### 🔴 Pending (Next Steps)
-| # | Task | Details |
-|---|---|---|
-| 1 | **Wire real instance ID** | Replace mock `i-0a1b2c3d4e5f67890` with real `i-0745704ce945b62bc` in `backend/api/server.py` |
-| 2 | **Verify Datadog metrics** | Check Datadog → Infrastructure → Hosts for 3 hosts tagged `WasteHunter:monitor` |
-| 3 | **Replace mock Datadog data** | Update `backend/mcp_server/mock_data.py` to call real Datadog API using `DATADOG_API_KEY` + `DATADOG_APP_KEY` |
-| 4 | **End-to-end demo run** | Trigger agent against real instance → opens real PR on waste-hunter-dummy → approve in UI |
-| 5 | **Add ANTHROPIC_API_KEY** | Fill in `frontend/.env.local` — required for CopilotKit self-hosted runtime |
+| FastAPI backend (port 8000) | Running |
+| Datadog real CPU scanner | Working — queries last N minutes of CPU, flags idle instances |
+| Neo4j blast radius checker | Working |
+| MiniMax IaC rewriter | Working — rewrites Terraform + K8s YAML |
+| GitHub PR creator | Working — opens PR on `darshlukkad/waste-hunter-dummy` |
+| CopilotKit runtime (self-hosted, Bedrock) | Working — uses BedrockAdapter, NO Anthropic key needed |
+| Next.js frontend (port 3000) | Running |
+| Approve / Reject PR flow | Working — merges or closes GitHub PR |
+| Create PR button | Working — triggers MiniMax rewrite + GitHub PR creation on demand |
+| Infinite re-render fix | Fixed — useMemo + useCallback in trigger-detail-view |
 
 ---
 
-## Real AWS Infrastructure (waste-hunter-dummy repo)
-
-```
-Account:    318265007132 (personal, us-west-2)
-Region:     us-west-2
-ALB DNS:    wastehunter-alb-531314747.us-west-2.elb.amazonaws.com
-ASG:        wastehunter-asg  (min=3, desired=3, max=6)
-Instance:   i-0745704ce945b62bc  (t3.micro, AL2023)
-Instance type: t3.micro  ← WasteHunter will recommend → t3.nano
-VPC:        vpc-0c3b19d3a75cd8d1a (default VPC)
-Subnets:    subnet-074fb1e09376f5048, subnet-0fa64fc77257dc15d
-```
-
-### Scale logic
-- Scale **out** (up to 6): CPU > 70% for 2× 60s periods
-- Scale **in** (down to 3): CPU < 10% for 5× 120s periods
-
-### Test commands
-```bash
-curl http://wastehunter-alb-531314747.us-west-2.elb.amazonaws.com/health
-# → {"status": "ok"}
-
-curl http://wastehunter-alb-531314747.us-west-2.elb.amazonaws.com/api/recommend
-# → 5 random recommendations (simulates idle rec-engine)
-
-# Get running instance IDs
-aws ec2 describe-instances \
-  --filters "Name=tag:WasteHunter,Values=monitor" "Name=instance-state-name,Values=running" \
-  --query 'Reservations[*].Instances[*].InstanceId' \
-  --output text --region us-west-2
-```
-
----
-
-## Repository Structure
+## Repository Structure (Actual)
 
 ```
 WasteHunter/
+├── context.md                            # This file — full project context
 ├── backend/
-│   ├── .env                        # All secrets (see below)
-│   ├── requirements.txt
-│   ├── .venv/                      # Python 3.13 venv (mcp needs ≥3.10)
+│   ├── .env                              # All backend secrets (see env section)
+│   ├── .env.example                      # Example env template
+│   ├── requirements.txt                  # Python dependencies
+│   ├── .venv/                            # Python 3.13 venv
 │   ├── api/
-│   │   └── server.py               # FastAPI REST API (port 8000)
+│   │   └── server.py                     # FastAPI REST API — all endpoints
 │   ├── agent/
-│   │   └── waste_hunter.py         # Amazon Bedrock agentic loop
-│   ├── graph/                      # Neo4j integration (renamed from neo4j/ to avoid package shadow)
-│   │   ├── blast_radius.py         # BlastRadiusChecker class
-│   │   └── schema.cypher           # Seed data for Neo4j Aura
+│   │   └── waste_hunter.py               # Bedrock agentic loop (standalone, 5 tools)
+│   ├── graph/
+│   │   ├── blast_radius.py               # BlastRadiusChecker — Neo4j Aura queries
+│   │   └── schema.cypher                 # Seed data for Neo4j Aura graph
 │   ├── github_pr/
-│   │   ├── minimax_rewriter.py     # MiniMax IaC rewriter (Terraform + K8s)
-│   │   └── pr_creator.py           # GitHub PR creator via PyGithub
-│   └── mcp_server/
-│       ├── server.py               # FastMCP server (5 tools)
-│       └── mock_data.py            # Mock Datadog telemetry (replace with real Datadog API)
+│   │   ├── minimax_rewriter.py           # MiniMax-Text-01 rewrites Terraform + K8s YAML
+│   │   └── pr_creator.py                 # PRCreator — creates GitHub PR via PyGithub
+│   ├── mcp_server/
+│   │   ├── server.py                     # FastMCP server (5 tools for agent)
+│   │   └── mock_data.py                  # Mock Datadog telemetry (used by agent loop)
+│   └── scanner/
+│       └── datadog_scanner.py            # Real Datadog API scanner (used by /api/scan)
 ├── frontend/
-│   ├── .env.local                  # Frontend env vars
-│   ├── package.json                # Next.js 16, React 19, CopilotKit 1.51.4
+│   ├── .env                              # Frontend env vars (NEXT_PUBLIC_BACKEND_URL + AWS)
+│   ├── package.json                      # Next.js 16.1.6, React 19, CopilotKit 1.51.4
 │   ├── app/
-│   │   ├── layout.tsx              # Root layout with <Providers> + suppressHydrationWarning
-│   │   ├── providers.tsx           # CopilotKit provider wrapper ("use client")
-│   │   ├── page.tsx                # Dashboard — lists all triggers
-│   │   ├── trigger/[id]/page.tsx   # Trigger detail — wraps agent findings in CopilotTriggerDetail
-│   │   ├── api/backend/[...path]/route.ts  # Next.js proxy → FastAPI backend
-│   │   └── api/copilotkit/route.ts # Self-hosted CopilotKit runtime (AnthropicAdapter)
+│   │   ├── layout.tsx                    # Root layout — wraps with <Providers>, suppressHydrationWarning on <body>
+│   │   ├── providers.tsx                 # CopilotKit provider ("use client") runtimeUrl="/api/copilotkit"
+│   │   ├── page.tsx                      # Dashboard — lists all active triggers
+│   │   ├── globals.css                   # Tailwind v4 global styles
+│   │   ├── api/
+│   │   │   └── copilotkit/
+│   │   │       └── route.ts              # Self-hosted CopilotKit runtime (BedrockAdapter + delegateAgentProcessingToServiceAdapter)
+│   │   └── trigger/
+│   │       └── [id]/
+│   │           └── page.tsx              # Trigger detail page (SSR shell)
 │   ├── components/
-│   │   ├── approval-card.tsx       # Generative UI card for approve/reject
-│   │   ├── copilot-trigger-detail.tsx  # CopilotKit sidebar + actions
-│   │   ├── top-nav.tsx
-│   │   ├── trigger-detail-header.tsx
-│   │   ├── trigger-metrics.tsx
-│   │   ├── state-timeline.tsx
-│   │   ├── trigger-config.tsx
-│   │   └── ui/                     # shadcn/ui components
+│   │   ├── triggers-list.tsx             # Dashboard list — Scan Now button + findings list
+│   │   ├── trigger-detail-client.tsx     # Client wrapper — useFinding polling hook
+│   │   ├── trigger-detail-view.tsx       # Full detail view — useCopilotReadable, useCopilotAction, CopilotPopup
+│   │   ├── pr-action-panel.tsx           # Create PR / Approve / Reject panel
+│   │   ├── ai-reasoning.tsx              # AI analysis evidence display
+│   │   ├── code-diff.tsx                 # IaC code changes display
+│   │   ├── workflow-status.tsx           # Pipeline step progress display
+│   │   ├── analytics-section.tsx         # Summary metrics
+│   │   ├── top-nav.tsx                   # Header with theme toggle
+│   │   └── ui/                           # shadcn/ui primitives
+│   ├── hooks/
+│   │   └── use-findings.ts               # useFindings (list, 15s poll) + useFinding (single, 10s poll)
 │   └── lib/
-│       └── data.ts                 # Trigger data + AgentFinding interface
-├── infra/
-│   ├── terraform/main.tf           # Mock Terraform with m5.4xlarge (waste target for demo)
-│   └── k8s/deployment.yaml         # Mock K8s with oversized resource requests
-└── context.md                      # This file
-```
-
-**Separate repo** — `darshlukkad/waste-hunter-dummy`:
-```
-waste-hunter-dummy/
-├── infra/terraform/
-│   ├── main.tf          # Real deployable Terraform (ALB + ASG + EC2)
-│   ├── variables.tf     # vpc_id, subnet_ids, ami_id, instance_type, datadog_api_key
-│   ├── outputs.tf       # alb_dns, asg_name, get_instance_ids command
-│   ├── user_data.sh     # EC2 bootstrap: installs rec_engine.py + Datadog agent
-│   └── terraform.tfvars # Local only — contains secrets, gitignored
-└── app/
-    └── rec_engine.py    # Minimal idle HTTP server (stdlib only, port 8080)
-                         # GET /health → {"status":"ok"}
-                         # GET /api/recommend → 5 random items
-                         # GET /metrics → uptime + request count
+│       ├── data.ts                       # TypeScript interfaces: Trigger, WorkflowState, WorkflowStep, BlastRisk, TriggerStatus
+│       ├── backend.ts                    # API client: fetchFindings, fetchFinding, triggerScan, createPr, approveFinding, rejectFinding, mapFindingToTrigger
+│       └── utils.ts                      # cn() helper
+└── infra/
+    ├── terraform/main.tf                 # Demo Terraform file (seeded to GitHub repo, rewritten by MiniMax)
+    └── k8s/deployment.yaml               # Demo K8s file (seeded to GitHub repo, rewritten by MiniMax)
 ```
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| AI Orchestration | Amazon Bedrock — Claude Sonnet 4.5 cross-region inference |
-| Bedrock Model ID | `us.anthropic.claude-3-5-sonnet-20241022-v2:0` (us-west-2) |
-| Tool Protocol | MCP (Model Context Protocol) via FastMCP |
-| Telemetry | Datadog (mock → real) via MCP tool |
-| Dependency Graph | Neo4j Aura — blast radius assessment + rejection memory |
-| IaC Rewriting | MiniMax `MiniMax-Text-01` via `https://api.minimax.io/v1` |
-| PR Automation | GitHub via PyGithub |
-| Backend API | FastAPI + uvicorn (port 8000) |
-| Frontend | Next.js 16 (App Router), React 19, TypeScript |
-| AI Chat UI | CopilotKit 1.51.4 — self-hosted runtime via `/api/copilotkit` + `AnthropicAdapter` |
-| Styling | Tailwind CSS v4, shadcn/ui |
-| Charts | Recharts |
-| Real Infra | AWS EC2 (t3.micro × 3), ALB, ASG, CloudWatch, Datadog agent |
-| Hosting (demo) | localhost (frontend :3000, backend :8000) |
+| Layer | Technology | Details |
+|---|---|---|
+| AI Orchestration | Amazon Bedrock | `us.anthropic.claude-3-5-sonnet-20241022-v2:0` cross-region inference |
+| CopilotKit LLM | Amazon Bedrock | `us.anthropic.claude-3-5-haiku-20241022-v1:0` via BedrockAdapter |
+| Tool Protocol | MCP (Model Context Protocol) | FastMCP server — 5 tools |
+| Telemetry | Datadog Metrics API v1 | `avg:system.cpu.user{managed_by:wastehunter} by {host}` |
+| Dependency Graph | Neo4j Aura | Blast radius assessment + rejection memory |
+| IaC Rewriting | MiniMax `MiniMax-Text-01` | `https://api.minimax.io/v1/chat/completions` |
+| PR Automation | GitHub API | PyGithub — creates branch + commits + PR |
+| Backend API | FastAPI + uvicorn | Python 3.13, port 8000 |
+| Frontend Framework | Next.js 16.1.6 App Router | React 19, TypeScript 5.7.3 |
+| AI Chat UI | CopilotKit 1.51.4 | Self-hosted runtime, BedrockAdapter, CopilotPopup |
+| Styling | Tailwind CSS v4 + shadcn/ui | Dark mode default, next-themes |
+| Real Infra | AWS EC2 (t3.micro × 3) | ALB, ASG, CloudWatch, Datadog agent, us-west-2 |
 
 ---
 
@@ -150,32 +109,40 @@ waste-hunter-dummy/
 
 ### `backend/.env`
 ```
+# AWS Bedrock (credential chain from ~/.aws/credentials OR explicit)
+AWS_DEFAULT_REGION=us-west-2
+
+# Neo4j Aura (Phase 2 — Blast Radius)
 NEO4J_URI=neo4j+s://ef15a093.databases.neo4j.io
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=<secret>
 
-MINIMAX_API_KEY=sk-api-<secret>
+# MiniMax (Phase 3 — IaC rewrite)
+MINIMAX_API_KEY=<secret>
 MINIMAX_GROUP_ID=2024721252354101384
 
-GITHUB_TOKEN=github_pat_<secret>
+# GitHub (Phase 3 — PR creation)
+GITHUB_TOKEN=<secret>
 GITHUB_REPO=darshlukkad/waste-hunter-dummy
 
-COPILOTKIT_API_KEY=ck_pub_4d2973a359584f58bccc6cd5e7117324
-
-# Datadog — add these for real metrics (optional, mock works for demo)
-# DATADOG_API_KEY=888c9d32ae2a2c0ee7920983abab0515
-# DATADOG_APP_KEY=<app_key>
-# DATADOG_SITE=datadoghq.com
-
-# AWS via ~/.aws/credentials — region: us-west-2
+# Datadog (real scanner)
+DATADOG_API_KEY=<secret>
+DATADOG_APP_KEY=<secret>
+DATADOG_SITE=datadoghq.com
 ```
 
-### `frontend/.env.local`
+### `frontend/.env`
 ```
-NEXT_PUBLIC_COPILOTKIT_API_KEY=ck_pub_4d2973a359584f58bccc6cd5e7117324
+# Backend URL (proxy to FastAPI)
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-ANTHROPIC_API_KEY=<your-anthropic-api-key>   # Required for CopilotKit self-hosted runtime
+
+# AWS credentials for CopilotKit BedrockAdapter (used server-side in route.ts)
+AWS_ACCESS_KEY_ID=<secret>
+AWS_SECRET_ACCESS_KEY=<secret>
+AWS_REGION=us-west-2
 ```
+
+**Important**: The frontend does NOT use `ANTHROPIC_API_KEY`. CopilotKit is wired to AWS Bedrock via `BedrockAdapter`.
 
 ---
 
@@ -191,150 +158,410 @@ cd frontend
 npm run dev
 ```
 
-- Dashboard: http://localhost:3000
-- Agent finding detail: http://localhost:3000/trigger/i-0745704ce945b62bc
-- Backend health: http://localhost:8000/api/health
-- Backend findings: http://localhost:8000/api/findings
+- Dashboard:              http://localhost:3000
+- Trigger detail:         http://localhost:3000/trigger/i-029da6afe1826bbba
+- Backend health:         http://localhost:8000/api/health
+- Backend findings:       http://localhost:8000/api/findings
+- Swagger UI:             http://localhost:8000/docs
 
 ---
 
-## Agent Pipeline (5 Steps)
+## Backend API Endpoints (Complete)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/health` | Health check — returns `{status: "ok", timestamp}` |
+| GET | `/api/findings` | All findings with current PR status merged in |
+| GET | `/api/findings/{resource_id}` | Single finding by EC2 instance ID |
+| POST | `/api/approve/{resource_id}` | Merge GitHub PR via PyGithub squash merge |
+| POST | `/api/reject/{resource_id}` | Close GitHub PR + write `RejectedAction` node to Neo4j |
+| POST | `/api/scan` | Query Datadog for idle instances, add/update FINDINGS |
+| POST | `/api/create_pr/{resource_id}` | MiniMax IaC rewrite + GitHub PR creation for a finding |
+
+### Request Bodies
+```
+POST /api/reject/{resource_id}
+  { "reason": "string", "rejected_by": "string" }
+
+POST /api/scan
+  { "cpu_threshold_pct": 10.0, "lookback_minutes": 60, "tag_filter": "managed_by:wastehunter" }
+
+POST /api/create_pr/{resource_id}
+  (no body — uses in-memory finding data)
+```
+
+### In-memory State
+The server uses `FINDINGS: list[dict]` and `PR_STATUS: dict[str, str]` for state. These are seeded at startup with one real finding for `i-029da6afe1826bbba`. New findings are added by `/api/scan`. State resets on server restart.
+
+---
+
+## Real AWS Infrastructure
 
 ```
-1. get_idle_resources        → Datadog scan → finds i-0745704ce945b62bc (t3.micro, ~$0.01/hr waste)
-2. get_resource_telemetry    → 7-day hourly metrics: CPU ~2% avg, memory ~15%
-3. check_blast_radius        → Neo4j graph traversal → blast risk assessment
-4. rewrite_iac               → MiniMax rewrites main.tf (t3.micro → t3.nano)
-5. create_github_pr          → Opens PR on darshlukkad/waste-hunter-dummy
+Account:    318265007132 (personal, us-west-2)
+Region:     us-west-2
+ALB DNS:    wastehunter-alb-531314747.us-west-2.elb.amazonaws.com
+ASG:        wastehunter-asg  (min=3, desired=3, max=6)
+Tag:        managed_by:wastehunter  (used by Datadog scanner filter)
+
+Instance IDs (all t3.micro, Name=wastehunter-rec-engine):
+  i-029da6afe1826bbba
+  i-030a14838974430e7
+  i-03e3a5ce0a14eaa82
 ```
 
-Run the agent:
+### Datadog Metrics
+- All 3 instances are tagged `managed_by:wastehunter` in Datadog
+- `system.cpu.user` avg ≈ 0.56% (well below 10% threshold)
+- 147 data points per hour
+- Metric: `avg:system.cpu.user{managed_by:wastehunter} by {host}`
+- Memory: `avg:system.mem.pct_usable{managed_by:wastehunter} by {host}`
+
+### Scope Parsing (important)
+Datadog returns scope strings like `host:i-029da6afe1826bbba,managed_by:wastehunter`.
+The scanner uses `_extract_host()` to split on `,` and find the `host:` prefix.
+Without this, resource_id would be the full scope string including the tag.
+
+---
+
+## Agent Pipeline (Standalone — `backend/agent/waste_hunter.py`)
+
+The Bedrock agent runs a 5-tool agentic loop. It is separate from the API server and can be run standalone:
+
 ```bash
 cd backend
 .venv/bin/python -m agent.waste_hunter
 ```
 
+```
+Tool 1: get_idle_resources     → Mock Datadog scan → returns idle instances from mock_data.py
+Tool 2: get_resource_telemetry → 7-day hourly timeseries for CPU/memory/network
+Tool 3: check_blast_radius     → Neo4j graph traversal → SAFE/LOW/MEDIUM/CRITICAL + reasons
+Tool 4: rewrite_iac            → MiniMax rewrites infra/terraform/main.tf + infra/k8s/deployment.yaml
+Tool 5: create_github_pr       → Opens PR on darshlukkad/waste-hunter-dummy via PRCreator
+```
+
+**Note**: The agent uses `mock_data.py` for `get_idle_resources`. The real Datadog scanner (`scanner/datadog_scanner.py`) is wired into the `/api/scan` REST endpoint, NOT the agent loop.
+
 ---
 
-## Backend API Endpoints
+## Datadog Scanner (`backend/scanner/datadog_scanner.py`)
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/health` | Health check |
-| GET | `/api/findings` | All agent findings with current PR status |
-| GET | `/api/findings/{resource_id}` | Single finding |
-| POST | `/api/approve/{resource_id}` | Merge GitHub PR via PyGithub, updates in-memory status |
-| POST | `/api/reject/{resource_id}` | Close PR + write RejectedAction node to Neo4j |
+Called by `POST /api/scan`. Queries real Datadog metrics:
 
-The reject body is `{ "reason": "string", "rejected_by": "string" }`.
+```python
+DatadogScanner.from_env()   # reads DATADOG_API_KEY, DATADOG_APP_KEY, DATADOG_SITE
+scanner.scan(
+    tag_filter="managed_by:wastehunter",
+    cpu_threshold_pct=10.0,
+    lookback_minutes=60,
+)
+```
 
-In-memory state (`FINDINGS`, `PR_STATUS`) is seeded with the real agent output for `prod-api-server-03`.
+Returns findings matching the `BackendFinding` schema. EC2 instance metadata is enriched via `boto3.client("ec2").describe_instances()`. Falls back to `KNOWN_INSTANCE_NAMES` static map if EC2 API fails.
+
+Pricing and downsize maps are hardcoded for us-west-2 on-demand Linux pricing.
+
+---
+
+## GitHub PR Creator (`backend/github_pr/pr_creator.py`)
+
+Called by `/api/create_pr/{resource_id}`. Full pipeline:
+
+```
+1. _ensure_base_files()     → seeds infra/terraform/main.tf + infra/k8s/deployment.yaml to main branch if missing
+2. _get_file_content()      → reads current file content from main branch
+3. rewrite_terraform()      → MiniMax rewrites .tf (changes instance_type)
+4. rewrite_k8s()            → MiniMax rewrites deployment.yaml (right-sizes requests/limits)
+5. _create_branch()         → creates branch waste-hunter/downsize-{resource_id}
+6. _update_file() × 2       → commits both files to branch
+7. _open_pr()               → creates PR with full savings + blast risk table in body
+```
+
+CRITICAL blast risk → PR opened as draft. Others → normal open PR.
+
+---
+
+## MiniMax Rewriter (`backend/github_pr/minimax_rewriter.py`)
+
+Uses `MiniMax-Text-01` model at `https://api.minimax.io/v1/chat/completions`.
+
+- `rewrite_terraform(content, from_type, to_type, resource_name)` → returns full .tf with updated `instance_type`
+- `rewrite_k8s(content)` → returns full YAML with right-sized `resources.requests` and `resources.limits`
+
+Temperature: 0.05 (deterministic code output). Timeout: 60s.
+
+---
+
+## CopilotKit Integration
+
+### Architecture
+```
+frontend/app/providers.tsx
+  └── <CopilotKit runtimeUrl="/api/copilotkit">
+        └── wraps entire app
+
+frontend/app/api/copilotkit/route.ts
+  └── POST handler (Next.js App Router)
+  └── BedrockAdapter(model="us.anthropic.claude-3-5-haiku-20241022-v1:0", region="us-west-2")
+  └── CopilotRuntime({ delegateAgentProcessingToServiceAdapter: true })
+      ← CRITICAL: without this flag, v1.51.4 throws "Agent 'default' not found"
+  └── copilotRuntimeNextJSAppRouterEndpoint(...)
+```
+
+### Hooks used in `trigger-detail-view.tsx`
+```tsx
+// Memoized — prevents infinite re-render loop
+const findingValue = useMemo(() => ({ ...trigger fields }), [deps])
+useCopilotReadable({ description: "...", value: findingValue })
+
+// Memoized handlers
+const handleApprove = useCallback(async () => { ... }, [deps])
+const handleReject  = useCallback(async ({ reason }) => { ... }, [deps])
+useCopilotAction({ name: "approveFinding", handler: handleApprove })
+useCopilotAction({ name: "rejectFinding",  handler: handleReject  })
+
+// Floating chat popup
+<CopilotPopup instructions="..." labels={{ title: "WasteHunter Copilot", initial: "..." }} />
+```
+
+The Copilot can call `approveFinding()` or `rejectFinding(reason)` via natural language.
 
 ---
 
 ## Frontend Data Flow
 
 ```
-lib/data.ts
-  └── Trigger interface (+ optional AgentFinding)
-  └── triggers[] array — includes prod-api-server-03 (id: i-0745704ce945b62bc)
+Page: /
+  └── app/page.tsx (static shell)
+      └── components/triggers-list.tsx
+          └── useFindings() hook → polls GET /api/findings every 15s
+          └── "Scan Now" button → POST /api/scan → adds new findings
+          └── renders list of trigger cards → links to /trigger/[id]
 
-app/trigger/[id]/page.tsx
-  └── if trigger.finding → wrap in <CopilotTriggerDetail>
+Page: /trigger/[id]
+  └── app/trigger/[id]/page.tsx (SSR shell)
+      └── components/trigger-detail-client.tsx
+          └── useFinding(id) hook → polls GET /api/findings/{id} every 10s
+          └── onActionComplete = refetch (stable useCallback)
+          └── components/trigger-detail-view.tsx
+              ├── CopilotKit hooks (useCopilotReadable, useCopilotAction × 2)
+              ├── components/pr-action-panel.tsx
+              │   ├── if no prUrl: shows "Create PR" button → POST /api/create_pr/{id}
+              │   └── if prUrl:    shows Approve / Reject buttons
+              ├── components/workflow-status.tsx   → pipeline step progress
+              ├── components/ai-reasoning.tsx      → evidence list
+              ├── components/code-diff.tsx         → IaC changes
+              └── <CopilotPopup> (floating AI chat)
+```
 
-components/copilot-trigger-detail.tsx
-  └── useCopilotReadable → gives AI context about resource
-  └── useCopilotAction("approve_downsize_pr") → renders <ApprovalCard>, calls /api/backend/approve/{id}
-  └── useCopilotAction("reject_downsize_pr")  → renders <ApprovalCard>, calls /api/backend/reject/{id}
-  └── CopilotSidebar → defaultOpen=true when PR exists, pre-loaded initial message
+### `mapFindingToTrigger()` in `frontend/lib/backend.ts`
+Converts `BackendFinding` (snake_case) → `Trigger` (camelCase). Derives:
+- `status` from `pr_status` (merged→approved, closed→rejected, open→pr_ready, else→detected)
+- `workflow` (5 pipeline steps with complete/active/pending states)
+- `aiReasoning` from `evidence` + `blast_reasons` arrays
+- `copilotSummary` one-line summary for CopilotKit initial message
 
-app/api/backend/[...path]/route.ts
-  └── Proxies /api/backend/** → http://localhost:8000/api/**
+---
 
-app/api/copilotkit/route.ts
-  └── Self-hosted CopilotKit runtime (POST) using AnthropicAdapter + claude-sonnet-4-6-20251101
-  └── Eliminates "useAgent: Agent 'default' not found" cloud error
+## Key Bugs Fixed
 
-app/providers.tsx
-  └── <CopilotKit runtimeUrl="/api/copilotkit"> wraps entire app
+### 1. CopilotKit "Agent 'default' not found" (v1.51.4)
+`CopilotRuntime` in v1.51.4 requires registered LangGraph agents. Without them it throws:
+```
+useAgent: Agent 'default' not found after runtime sync. No agents registered.
+```
+**Fix**: Pass `{ delegateAgentProcessingToServiceAdapter: true }` to `CopilotRuntime` constructor.
+
+### 2. React Infinite Re-render Loop
+`useCopilotReadable` and `useCopilotAction` in `trigger-detail-view.tsx` received new object/function references on every render. CopilotKit detected the changes, updated internal state, triggered re-render → loop.
+**Fix**: Wrap readable value in `useMemo`, wrap action handlers in `useCallback`.
+
+### 3. React Hydration Mismatch
+Grammarly browser extension injects `data-new-gr-c-s-check-loaded` and `data-gr-ext-installed` attributes into `<body>` after SSR, causing mismatch.
+**Fix**: Add `suppressHydrationWarning` to `<body>` in `app/layout.tsx`.
+
+### 4. Datadog Scope Parsing
+Datadog returns scope like `host:i-029da6afe1826bbba,managed_by:wastehunter`. Naively splitting gives wrong `resource_id`.
+**Fix**: `_extract_host()` splits on `,`, finds part starting with `host:`, strips the prefix.
+
+### 5. EC2 AuthFailure
+`boto3.client("ec2").describe_instances()` failed with AuthFailure when scanner ran with explicit IAM credentials.
+**Fix**: Use default credential chain. Fall back to `KNOWN_INSTANCE_NAMES` static map for the 3 ASG instances.
+
+### 6. PR Creation Not Wired to Scan
+`POST /api/scan` only detected idle instances — no PRs were created. PRCreator lived only inside the standalone agent.
+**Fix**: Added `POST /api/create_pr/{resource_id}` endpoint + "Create PR" button in `pr-action-panel.tsx`.
+
+### 7. `neo4j/` Package Shadow (historical)
+Directory named `neo4j/` shadowed the installed `neo4j` pip package.
+**Fix**: Renamed to `graph/` everywhere.
+
+### 8. Bedrock Model ID
+Must use `us.` prefix + `:0` suffix for cross-region inference profile.
+`us.anthropic.claude-3-5-sonnet-20241022-v2:0` — Bedrock agent
+`us.anthropic.claude-3-5-haiku-20241022-v1:0` — CopilotKit BedrockAdapter
+
+### 9. MiniMax API Endpoint
+Correct endpoint: `https://api.minimax.io/v1/chat/completions`
+(not `minimaxi.com`, not `minimax.chat`, not the legacy `chatcompletion_v2` path)
+
+### 10. Neo4j Cypher Range Parameter
+`[r*1..$max_hops]` fails — parameters can't be range bounds in Cypher.
+**Fix**: Use f-string: `f"[r*1..{hops}]"`
+
+---
+
+## Dummy GitHub Repo (`darshlukkad/waste-hunter-dummy`)
+
+Separate repo used as the target for PR creation. Contains:
+```
+infra/terraform/main.tf         ← seeded from local WasteHunter/infra/terraform/main.tf
+infra/k8s/deployment.yaml       ← seeded from local WasteHunter/infra/k8s/deployment.yaml
+app/rec_engine.py               ← idle HTTP server (port 8080), stdlib only
+```
+
+The `PRCreator` seeds these files if they don't exist, then overwrites them with MiniMax output on a new branch, then opens a PR targeting `main`.
+
+---
+
+## Neo4j Blast Radius Graph (`backend/graph/blast_radius.py`)
+
+Neo4j Aura instance at `neo4j+s://ef15a093.databases.neo4j.io`.
+
+`BlastRadiusChecker.check(resource_id, max_hops=2)` returns:
+```python
+BlastRadiusResult(
+    risk="SAFE|LOW|MEDIUM|CRITICAL",
+    reasons=["..."],
+    dependencies=[{"id": "...", "type": "...", "criticality": "..."}]
+)
+```
+
+Risk levels: no dependencies → SAFE, low criticality → LOW, medium → MEDIUM, any CRITICAL dependency → CRITICAL.
+
+On rejection, `RejectedAction` nodes are written to Neo4j so the agent remembers previous human decisions.
+
+---
+
+## Instance Pricing Reference (us-west-2, Linux on-demand)
+
+| Type | $/hr | $/mo (730h) |
+|---|---|---|
+| t3.nano | $0.0052 | $3.80 |
+| t3.micro | $0.0104 | $7.59 |
+| t3.small | $0.0208 | $15.18 |
+| t3.medium | $0.0416 | $30.37 |
+| t3.large | $0.0832 | $60.74 |
+| m5.large | $0.0960 | $70.08 |
+| c5.large | $0.0850 | $62.05 |
+
+Downsize map: `t3.micro → t3.nano`, `t3.small → t3.micro`, `t3.medium → t3.small`, etc.
+
+---
+
+## Seeded Demo Finding (server.py startup state)
+
+```python
+FINDINGS = [{
+    "resource_id": "i-029da6afe1826bbba",
+    "name": "wastehunter-rec-engine",
+    "service": "Recommendation Engine",
+    "region": "us-west-2",
+    "current_type": "t3.micro",
+    "recommended_type": "t3.nano",
+    "monthly_savings_usd": 11.37,
+    "annual_savings_usd": 136.44,
+    "blast_risk": "LOW",
+    "pr_url": "https://github.com/darshlukkad/waste-hunter-dummy/pull/1",
+    "pr_number": 1,
+    "pr_status": "open",
+    ...
+}]
+```
+
+Additional findings are added at runtime by `POST /api/scan` from the Datadog scanner.
+
+---
+
+## Known Instance Names (static fallback)
+
+```python
+KNOWN_INSTANCE_NAMES = {
+    "i-029da6afe1826bbba": "wastehunter-rec-engine",
+    "i-030a14838974430e7": "wastehunter-rec-engine",
+    "i-03e3a5ce0a14eaa82": "wastehunter-rec-engine",
+}
+```
+
+All 3 ASG instances run the same `rec_engine.py` app and are tagged `managed_by:wastehunter`.
+
+---
+
+## Test Commands
+
+```bash
+# Check ALB health
+curl http://wastehunter-alb-531314747.us-west-2.elb.amazonaws.com/health
+
+# Backend health
+curl http://localhost:8000/api/health
+
+# Get all findings
+curl http://localhost:8000/api/findings | python3 -m json.tool
+
+# Trigger Datadog scan
+curl -X POST http://localhost:8000/api/scan \
+  -H "Content-Type: application/json" \
+  -d '{"cpu_threshold_pct": 10.0, "lookback_minutes": 60}'
+
+# Create PR for a finding
+curl -X POST http://localhost:8000/api/create_pr/i-029da6afe1826bbba
+
+# Approve PR
+curl -X POST http://localhost:8000/api/approve/i-029da6afe1826bbba
+
+# Reject PR
+curl -X POST http://localhost:8000/api/reject/i-029da6afe1826bbba \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "Not safe to downsize during peak traffic", "rejected_by": "engineer"}'
+
+# Run standalone agent (full pipeline with mock data)
+cd backend && .venv/bin/python -m agent.waste_hunter
+
+# Run Datadog scanner CLI
+cd backend && .venv/bin/python scanner/datadog_scanner.py
+
+# Run MiniMax rewriter CLI
+cd backend && .venv/bin/python github_pr/minimax_rewriter.py
 ```
 
 ---
 
-## Key Decisions & Bug Fixes
+## CopilotKit npm Dependencies
 
-### Python
-- **Python 3.13 required**: `mcp` package needs ≥3.10; used `/opt/homebrew/bin/python3.13`
-- **`graph/` not `neo4j/`**: Directory named `neo4j/` shadowed the installed `neo4j` pip package → renamed to `graph/`
-- **Cypher hop range**: `[r*1..$max_hops]` fails in Neo4j (parameters can't be range bounds) → use f-string: `f"[r*1..{hops}]"`
-- **Neo4j seed**: Comment filter was applied to entire chunks → strip comment lines per chunk
-- **MiniMax endpoint**: Correct URL is `https://api.minimax.io/v1/chat/completions` (not `minimaxi.com` or `minimax.chat`)
-- **Bedrock model**: Must use `us.` prefix for cross-region inference + `:0` suffix. Model only approved in `us-west-2`
-- **PR imports**: `from github_pr.minimax_rewriter import ...` (not relative) when called from agent
-
-### Frontend
-- **Hydration warning**: Grammarly browser extension injects `data-gr-ext-installed` on `<body>` → fixed with `suppressHydrationWarning` on `<body>` in layout.tsx
-- **CopilotKit "useAgent not found"**: `publicApiKey` cloud mode requires agents registered in CopilotKit cloud — not needed here. Fixed by switching to self-hosted runtime: created `app/api/copilotkit/route.ts` using `AnthropicAdapter`, updated `providers.tsx` to `runtimeUrl="/api/copilotkit"`, requires `ANTHROPIC_API_KEY` in `.env.local`
-- **CopilotKit blast_risk type**: `ApprovalCard` expects `"SAFE" | "LOW" | "MEDIUM" | "CRITICAL"` union → cast with `as` in copilot-trigger-detail.tsx
-- **Unused BACKEND var**: Removed from copilot-trigger-detail.tsx
-
-### AWS / Terraform (waste-hunter-dummy)
-- **Workshop account blocks**: ec2:DescribeImages, ssm:GetParameter, ec2:CreateVpc, iam:CreateRole, ec2:DescribeVpcAttribute — all blocked by WSParticipantRole
-- **Personal account creds**: BedrockAPIKey-9upb only had Bedrock permissions — needed to add EC2FullAccess, IAMFullAccess, ELBFullAccess, AutoScalingFullAccess, CloudWatchFullAccess
-- **AMI lookup blocked**: Use hardcoded `var.ami_id` instead of data sources
-- **Free tier restriction**: t3.medium and t2.micro rejected — t3.micro works
-- **No data sources**: All VPC/subnet/IAM lookups use hardcoded variables to avoid DescribeVpcAttribute etc.
-
----
-
-## Demo Data (Current)
-
-```
-Resource:       prod-api-server-03  (i-0745704ce945b62bc)
-Service:        Recommendation Engine
-Region:         us-west-2
-Current type:   t3.micro  (~$0.01/hr)
-Recommended:    t3.nano   (~$0.005/hr, saves ~50%)
-CPU avg:        ~2%  (idle rec-engine app)
-Memory avg:     ~15%
-ALB:            wastehunter-alb-531314747.us-west-2.elb.amazonaws.com
-ASG:            wastehunter-asg (3 instances, scales to 6 at CPU>70%)
-PR target:      darshlukkad/waste-hunter-dummy → infra/terraform/main.tf
+```json
+"@copilotkit/react-core": "^1.51.4",
+"@copilotkit/react-ui": "^1.51.4",
+"@copilotkit/runtime": "^1.51.4"
 ```
 
----
-
-## CopilotKit Integration
-
-The sidebar auto-opens on the trigger detail page for `prod-api-server-03` with a pre-written message summarising the finding. The AI understands two actions:
-
-- **"approve"** → calls `approve_downsize_pr` → renders ApprovalCard → POST `/api/backend/approve/i-0745704ce945b62bc` → merges PR via GitHub API
-- **"reject because <reason>"** → calls `reject_downsize_pr` → renders ApprovalCard → POST `/api/backend/reject/i-0745704ce945b62bc` → closes PR + writes `RejectedAction` node to Neo4j so the agent remembers the decision
+Installed with `--legacy-peer-deps` due to `@anthropic-ai/sdk` version conflict (`@copilotkit/runtime` expects `^0.57.0` but `0.78.0` is installed — works at runtime).
 
 ---
 
-## Future Phases
+## Python Dependencies (backend/requirements.txt)
 
-### Phase 4 — Real Datadog Integration
-- Replace `backend/mcp_server/mock_data.py` with live Datadog API calls
-- Use `DATADOG_API_KEY` + `DATADOG_APP_KEY` in `.env`
-- Query `aws.ec2.cpuutilization` for the real ASG instances
-- Trigger WasteHunter automatically when CPU stays below 10% for 7 days
-
-### Phase 5 — Multi-Resource Support
-- Extend agent to scan all EC2 instances tagged `WasteHunter:monitor`
-- Support RDS, ECS, Lambda waste detection
-- Add K8s resource request waste (already has `infra/k8s/deployment.yaml`)
-- Batch PR creation for multiple findings
-
-### Phase 6 — Scheduled Scanning
-- Add cron job / EventBridge rule to run agent daily
-- Store findings history in DynamoDB or PostgreSQL
-- Email/Slack alerts when new waste is detected
-
-### Phase 7 — Production Hardening
-- Replace in-memory `FINDINGS`/`PR_STATUS` with persistent DB
-- Add authentication to frontend (Cognito / Auth0)
-- Deploy backend to AWS Lambda or ECS Fargate
-- Deploy frontend to Vercel or S3 + CloudFront
-- Add Terraform state backend (S3 + DynamoDB lock)
+```
+mcp>=1.0.0                  # Model Context Protocol (FastMCP)
+anthropic[bedrock]>=0.40.0  # Bedrock + Anthropic SDK
+boto3>=1.34.0               # AWS SDK (EC2, Bedrock)
+neo4j>=5.20.0               # Neo4j Aura driver
+httpx>=0.27.0               # MiniMax REST API calls
+PyGithub>=2.3.0             # GitHub PR creation
+fastapi>=0.115.0            # REST API
+uvicorn[standard]>=0.30.0   # ASGI server
+python-dotenv>=1.0.0        # .env loading
+pydantic>=2.7.0             # Request/response models
+requests>=2.31.0            # Datadog API calls (scanner)
+```
