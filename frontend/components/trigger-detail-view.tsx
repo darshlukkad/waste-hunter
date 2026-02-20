@@ -18,6 +18,9 @@ import {
   DollarSign,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core"
+import { CopilotPopup } from "@copilotkit/react-ui"
+import { approveFinding, rejectFinding } from "@/lib/backend"
 
 const riskConfig: Record<BlastRisk, { className: string }> = {
   SAFE: { className: "bg-chart-1/15 text-chart-1 border-chart-1/30" },
@@ -41,6 +44,60 @@ interface TriggerDetailViewProps {
 export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailViewProps) {
   const risk = riskConfig[trigger.blastRisk]
   const ServiceIcon = serviceIcons[trigger.service] || Server
+
+  // Expose finding context to the AI copilot
+  useCopilotReadable({
+    description: "The current cloud resource finding being reviewed",
+    value: {
+      resourceName: trigger.resourceName,
+      resourceId: trigger.resourceId,
+      service: trigger.service,
+      region: trigger.region,
+      currentInstance: trigger.currentInstance,
+      recommendedInstance: trigger.recommendedInstance,
+      monthlySavings: trigger.monthlySavings,
+      yearlySavings: trigger.yearlySavings,
+      blastRisk: trigger.blastRisk,
+      status: trigger.status,
+      detectedAt: trigger.detectedAt,
+      aiReasoning: trigger.aiReasoning,
+      copilotSummary: trigger.copilotSummary,
+      prUrl: trigger.prUrl,
+      prTitle: trigger.prTitle,
+      prStatus: trigger.prStatus,
+    },
+  })
+
+  // Allow the AI to approve the finding
+  useCopilotAction({
+    name: "approveFinding",
+    description: "Approve the cost-saving downsize recommendation and merge the pull request",
+    parameters: [],
+    handler: async () => {
+      await approveFinding(trigger.resourceId)
+      onActionComplete?.()
+      return `Approved ${trigger.resourceName}. The PR will be merged to downsize from ${trigger.currentInstance} to ${trigger.recommendedInstance}, saving $${trigger.monthlySavings}/mo.`
+    },
+  })
+
+  // Allow the AI to reject the finding
+  useCopilotAction({
+    name: "rejectFinding",
+    description: "Reject the cost-saving recommendation if it's not safe or suitable",
+    parameters: [
+      {
+        name: "reason",
+        type: "string",
+        description: "The reason for rejecting this recommendation",
+        required: true,
+      },
+    ],
+    handler: async ({ reason }: { reason: string }) => {
+      await rejectFinding(trigger.resourceId, reason)
+      onActionComplete?.()
+      return `Rejected ${trigger.resourceName}. Reason: ${reason}`
+    },
+  })
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -165,6 +222,21 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
           </div>
         </div>
       </main>
+
+      <CopilotPopup
+        instructions={`You are a FinOps AI assistant helping engineers review cloud cost optimization findings.
+You have access to the current finding details. You can:
+- Explain the AI reasoning and blast risk assessment
+- Help the engineer decide whether to approve or reject the change
+- Call approveFinding() to approve the PR, or rejectFinding(reason) to reject it
+- Answer questions about the specific resource, instance types, and savings
+
+Be concise, data-driven, and focus on helping the engineer make the right decision quickly.`}
+        labels={{
+          title: "WasteHunter Copilot",
+          initial: `Hi! I'm reviewing **${trigger.resourceName}** with you.\n\nThis is a **${trigger.blastRisk} blast risk** finding — downsizing from \`${trigger.currentInstance}\` to \`${trigger.recommendedInstance}\` saves **$${trigger.monthlySavings}/mo**.\n\nShould I approve it, or do you have questions first?`,
+        }}
+      />
     </div>
   )
 }
