@@ -1,25 +1,26 @@
 import { TopNav } from "@/components/top-nav"
-import { CostOverview } from "@/components/cost-overview"
-import { SavingsChart } from "@/components/savings-chart"
-import { TriggerList } from "@/components/trigger-list"
+import { AnalyticsSection } from "@/components/analytics-section"
+import { TriggersList } from "@/components/triggers-list"
 
-export default function DashboardPage() {
+export default function HomePage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <TopNav />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold tracking-tight text-foreground text-balance">
-            Infrastructure Overview
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Monitor idle services and optimize your backend costs.
-          </p>
-        </div>
-        <div className="flex flex-col gap-6">
-          <CostOverview />
-          <SavingsChart />
-          <TriggerList />
+      <main className="flex-1 overflow-auto">
+        <div className="mx-auto max-w-5xl px-6 py-8">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground text-balance">
+              Cost Optimization Dashboard
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground text-pretty">
+              AI-detected idle and over-provisioned resources. Review findings,
+              inspect code changes, and approve or reject PRs.
+            </p>
+          </div>
+          <div className="flex flex-col gap-8">
+            <AnalyticsSection />
+            <TriggersList />
+          </div>
         </div>
       </main>
     </div>
