@@ -36,64 +36,64 @@ MOCK_IDLE_RESOURCES: dict = {
     "region": "us-east-1",
     "idle_resources": [
         {
-            "resource_id": "i-0a1b2c3d4e5f67890",
+            "resource_id": "i-029da6afe1826bbba",
             "resource_type": "EC2",
-            "instance_type": "m5.4xlarge",
-            "name": "prod-api-server-03",
-            "environment": "production",
+            "instance_type": "t3.micro",
+            "name": "wastehunter-rec-engine",
+            "environment": "test",
             "team": "platform",
             "tags": {
                 "Service": "recommendation-engine",
-                "CostCenter": "eng-platform",
-                "Owner": "alice@company.com",
+                "WasteHunter": "monitor",
+                "Environment": "test",
             },
             "telemetry": {
                 "window": "7d",
                 "cpu": {
-                    "avg_pct": 3.2,
-                    "p95_pct": 8.1,
-                    "p99_pct": 11.4,
-                    "max_pct": 14.2,
+                    "avg_pct": 2.1,
+                    "p95_pct": 5.4,
+                    "p99_pct": 7.8,
+                    "max_pct": 9.3,
                 },
                 "memory": {
-                    "avg_pct": 14.7,
-                    "p95_pct": 18.3,
-                    "p99_pct": 21.1,
-                    "max_pct": 23.4,
+                    "avg_pct": 12.3,
+                    "p95_pct": 15.8,
+                    "p99_pct": 17.2,
+                    "max_pct": 19.1,
                 },
-                "network_in_mbps": {"avg": 0.8, "max": 2.1},
-                "network_out_mbps": {"avg": 0.3, "max": 0.9},
+                "network_in_mbps": {"avg": 0.2, "max": 0.8},
+                "network_out_mbps": {"avg": 0.1, "max": 0.4},
             },
             "cost": {
-                "current_type": "m5.4xlarge",
-                "current_vcpu": 16,
-                "current_ram_gb": 64,
-                "hourly_rate_usd": 0.768,
-                "monthly_cost_usd": 551.0,
-                "recommended_type": "m5.xlarge",
-                "recommended_vcpu": 4,
-                "recommended_ram_gb": 16,
-                "recommended_hourly_rate_usd": 0.192,
-                "recommended_monthly_cost_usd": 138.0,
-                "projected_monthly_savings_usd": 413.0,
-                "projected_annual_savings_usd": 4956.0,
-                "savings_pct": 74.96,
+                "current_type": "t3.micro",
+                "current_vcpu": 2,
+                "current_ram_gb": 1,
+                "hourly_rate_usd": 0.0104,
+                "monthly_cost_usd": 22.77,   # 3 instances × $7.59
+                "recommended_type": "t3.nano",
+                "recommended_vcpu": 2,
+                "recommended_ram_gb": 0.5,
+                "recommended_hourly_rate_usd": 0.0052,
+                "recommended_monthly_cost_usd": 11.40,
+                "projected_monthly_savings_usd": 11.37,
+                "projected_annual_savings_usd": 136.44,
+                "savings_pct": 49.9,
             },
             "idle_signal": {
                 "confidence": "HIGH",
                 "reasons": [
-                    "CPU avg 3.2% over 7 days (threshold: <10%)",
-                    "CPU p95 8.1% over 7 days (threshold: <10%)",
-                    "Memory avg 14.7% over 7 days (threshold: <20%)",
-                    "Network I/O avg < 1 Mbps",
+                    "CPU avg 2.1% over 7 days (threshold: <10%)",
+                    "CPU p95 5.4% over 7 days (threshold: <10%)",
+                    "Memory avg 12.3% over 7 days (threshold: <20%)",
+                    "Network I/O avg < 0.5 Mbps",
                 ],
             },
         }
     ],
     "summary": {
         "total_idle_resources": 1,
-        "total_monthly_savings_usd": 413.0,
-        "total_annual_savings_usd": 4956.0,
+        "total_monthly_savings_usd": 11.37,
+        "total_annual_savings_usd": 136.44,
     },
 }
 
@@ -102,11 +102,11 @@ MOCK_IDLE_RESOURCES: dict = {
 # Per-resource time-series cache (generated once, reused across tool calls)
 # ---------------------------------------------------------------------------
 _TIMESERIES_CACHE: dict[str, dict] = {
-    "i-0a1b2c3d4e5f67890": {
-        "cpu":         _gen_hourly_series(2.0, 4.5),
-        "memory":      _gen_hourly_series(13.0, 17.5),
-        "network_in":  _gen_hourly_series(0.5, 1.2),
-        "network_out": _gen_hourly_series(0.2, 0.5),
+    "i-029da6afe1826bbba": {
+        "cpu":         _gen_hourly_series(1.5, 3.2),
+        "memory":      _gen_hourly_series(10.0, 14.5),
+        "network_in":  _gen_hourly_series(0.1, 0.4),
+        "network_out": _gen_hourly_series(0.05, 0.2),
     }
 }
 

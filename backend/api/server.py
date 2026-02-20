@@ -59,53 +59,54 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 FINDINGS: list[dict] = [
     {
-        "resource_id":          "i-0a1b2c3d4e5f67890",
-        "name":                 "prod-api-server-03",
+        "resource_id":          "i-029da6afe1826bbba",
+        "name":                 "wastehunter-rec-engine",
         "service":              "Recommendation Engine",
         "team":                 "platform",
-        "owner":                "alice@company.com",
-        "region":               "us-east-1",
-        "current_type":         "m5.4xlarge",
-        "recommended_type":     "m5.xlarge",
+        "owner":                "team@company.com",
+        "region":               "us-west-2",
+        "current_type":         "t3.micro",
+        "recommended_type":     "t3.nano",
         "status":               "idle",
-        "severity":             "critical",
+        "severity":             "medium",
         "confidence":           "HIGH",
-        "idle_since":           "2026-02-13T00:00:00Z",
-        "last_active":          "2026-02-12T23:45:00Z",
-        "current_cost_usd":     551.0,
-        "projected_cost_usd":   138.0,
-        "monthly_savings_usd":  413.0,
-        "annual_savings_usd":   4956.0,
-        "savings_pct":          74.96,
-        "cpu_avg_pct":          3.2,
-        "cpu_p95_pct":          8.1,
-        "memory_avg_pct":       14.7,
-        "memory_p95_pct":       18.3,
-        "blast_risk":           "CRITICAL",
+        "idle_since":           "2026-02-20T00:00:00Z",
+        "last_active":          "2026-02-20T00:00:00Z",
+        "current_cost_usd":     22.77,    # 3× t3.micro @ $7.59/mo each
+        "projected_cost_usd":   11.40,    # 3× t3.nano @ $3.80/mo each
+        "monthly_savings_usd":  11.37,
+        "annual_savings_usd":   136.44,
+        "savings_pct":          49.9,
+        "cpu_avg_pct":          2.1,
+        "cpu_p95_pct":          5.4,
+        "memory_avg_pct":       12.3,
+        "memory_p95_pct":       15.8,
+        "blast_risk":           "LOW",
         "blast_reasons": [
-            "HIGH-criticality RDS 'recommendation-db' connected via CONNECTS_TO (1 hop)",
-            "HIGH-criticality LoadBalancer 'prod-api-alb' connected via ROUTES_TO (1 hop)",
-            "Previous downsize rejected by alice@company.com: 'Black Friday traffic spike'",
+            "ALB 'wastehunter-alb' routes traffic to this ASG (1 hop)",
+            "No RDS or stateful dependencies detected",
+            "ASG health checks will replace unhealthy instances automatically",
         ],
         "evidence": [
-            "CPU avg 3.2% over 7 days (threshold: <10%)",
-            "CPU p95 8.1% — consistently low across 168 hourly datapoints",
-            "Memory avg 14.7% over 7 days (threshold: <20%)",
-            "Network I/O avg < 1 Mbps",
+            "CPU avg 2.1% over 7 days (threshold: <10%)",
+            "CPU p95 5.4% — consistently idle across 168 hourly datapoints",
+            "Memory avg 12.3% over 7 days (threshold: <20%)",
+            "Network I/O avg < 0.5 Mbps",
+            "Datadog agent confirmed on all 3 ASG instances",
         ],
         "action":               "CREATE_PR_REQUIRES_APPROVAL",
         "pr_url":               "https://github.com/darshlukkad/waste-hunter-dummy/pull/1",
         "pr_number":            1,
-        "pr_is_draft":          True,
-        "pr_status":            "open",      # open | merged | closed
-        "pr_branch":            "waste-hunter/downsize-i-0a1b2c3d4e5f67890",
-        "files_changed":        ["infra/terraform/main.tf", "infra/k8s/deployment.yaml"],
-        "scanned_at":           "2026-02-20T00:00:00Z",
+        "pr_is_draft":          False,
+        "pr_status":            "open",
+        "pr_branch":            "waste-hunter/downsize-i-029da6afe1826bbba",
+        "files_changed":        ["infra/terraform/main.tf"],
+        "scanned_at":           "2026-02-20T22:00:00Z",
     }
 ]
 
 PR_STATUS: dict[str, str] = {
-    "i-0a1b2c3d4e5f67890": "open"
+    "i-029da6afe1826bbba": "open"
 }
 
 

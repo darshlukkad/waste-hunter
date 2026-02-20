@@ -64,81 +64,56 @@ export interface SavingsOverview {
 
 export const triggers: Trigger[] = [
   {
-    id: "trg-001",
-    resourceName: "prod-api-server-03",
-    resourceId: "i-0a1b2c3d4e5f67890",
+    id: "i-029da6afe1826bbba",
+    resourceName: "wastehunter-rec-engine",
+    resourceId: "i-029da6afe1826bbba",
     service: "EC2",
-    region: "us-east-1",
-    currentInstance: "m5.4xlarge",
-    recommendedInstance: "m5.xlarge",
-    monthlySavings: 413,
-    yearlySavings: 4956,
-    blastRisk: "CRITICAL",
+    region: "us-west-2",
+    currentInstance: "t3.micro",
+    recommendedInstance: "t3.nano",
+    monthlySavings: 11,
+    yearlySavings: 136,
+    blastRisk: "LOW",
     status: "pr_ready",
-    detectedAt: "2026-02-14T09:12:00Z",
+    detectedAt: "2026-02-20T22:00:00Z",
     aiReasoning: [
       {
-        title: "Low CPU utilization detected",
+        title: "CPU consistently near-idle",
         detail:
-          "Average CPU usage over the last 7 days is 12%, with a peak of 30%. The m5.4xlarge provides 16 vCPUs but workload rarely exceeds 4 vCPU equivalent.",
+          "Average CPU usage over the last 7 days is 2.1%, with a p95 of 5.4%. The t3.micro provides 2 vCPUs but the recommendation engine workload uses far less than 0.5 vCPU equivalent.",
       },
       {
-        title: "Memory is over-provisioned",
+        title: "Memory well within t3.nano limits",
         detail:
-          "Memory utilization averages 28% (17.9 GB of 64 GB). The recommended m5.xlarge provides 16 GB which covers peak usage with headroom.",
+          "Memory utilization averages 12.3% (126 MB of 1 GB). The t3.nano provides 512 MB which comfortably covers peak usage at 19.1% of t3.micro (191 MB).",
       },
       {
-        title: "Blast radius assessment",
+        title: "Low blast radius",
         detail:
-          "This instance connects to recommendation-db (RDS) and prod-api-alb. Connection pool configs may need adjustment. One prior downsize attempt was rejected due to latency concerns during peak traffic.",
+          "The ALB routes traffic to this ASG. No RDS or stateful dependencies detected. ASG health checks will automatically replace unhealthy instances, making the resize safe.",
       },
       {
         title: "Cost-benefit analysis",
         detail:
-          "Downsizing from m5.4xlarge ($0.768/hr) to m5.xlarge ($0.192/hr) saves $413/month. Risk is mitigated by the ALB health checks and auto-scaling group fallback.",
+          "Downsizing 3× t3.micro ($0.0104/hr each) to 3× t3.nano ($0.0052/hr each) saves $11.37/month ($136/year) — 50% reduction. Low risk, immediate savings.",
       },
     ],
     codeChanges: [
       {
-        file: "modules/api-cluster/main.tf",
+        file: "infra/terraform/main.tf",
         language: "hcl",
-        diff: `resource "aws_instance" "api_server" {
--  instance_type = "m5.4xlarge"
-+  instance_type = "m5.xlarge"
-   ami           = var.api_ami_id
-   subnet_id     = var.private_subnet_id
-
-   tags = {
-     Name        = "prod-api-server-03"
-     Environment = "production"
-+    DownsizedBy = "finops-waste-hunter"
-+    DownsizedAt = "2026-02-14"
-   }
+        diff: `resource "aws_launch_template" "app" {
+   name_prefix   = "wastehunter-"
+   image_id      = var.ami_id
+-  instance_type = "t3.micro"
++  instance_type = "t3.nano"
  }`,
       },
-      {
-        file: "k8s/prod/api-deployment.yaml",
-        language: "yaml",
-        diff: `spec:
-   containers:
-     - name: api
-       resources:
-         requests:
--          cpu: "4000m"
--          memory: "16Gi"
-+          cpu: "2000m"
-+          memory: "8Gi"
-         limits:
--          cpu: "8000m"
--          memory: "32Gi"
-+          cpu: "4000m"
-+          memory: "14Gi"`,
-      },
     ],
-    prUrl: "https://github.com/acme-corp/infra/pull/1847",
-    prTitle: "chore: downsize prod-api-server-03 from m5.4xlarge to m5.xlarge",
+    prUrl: "https://github.com/darshlukkad/waste-hunter-dummy/pull/1",
+    prTitle: "chore: downsize wastehunter-rec-engine from t3.micro to t3.nano",
     copilotSummary:
-      "prod-api-server-03 is running an m5.4xlarge but consistently uses less than 30% CPU and 45% memory. Downsizing to m5.xlarge saves $413/mo. Marked CRITICAL blast risk due to RDS and ALB dependencies plus one prior rejection.",
+      "wastehunter-rec-engine ASG (3× t3.micro, us-west-2) has been idle at ~2% CPU for 7 days. Downsizing to t3.nano saves $11/mo with LOW blast risk — no stateful dependencies, ALB health checks protect availability.",
   },
   {
     id: "trg-002",
