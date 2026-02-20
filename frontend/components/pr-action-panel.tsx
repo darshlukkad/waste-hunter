@@ -10,8 +10,9 @@ import {
   XCircle,
   ExternalLink,
   Loader2,
+  GitBranch,
 } from "lucide-react"
-import { approveFinding, rejectFinding } from "@/lib/backend"
+import { approveFinding, rejectFinding, createPr } from "@/lib/backend"
 import type { TriggerStatus } from "@/lib/data"
 
 interface PrActionPanelProps {
@@ -35,6 +36,7 @@ export function PrActionPanel({
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [creatingPr, setCreatingPr] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [backendMessage, setBackendMessage] = useState<string | null>(null)
 
@@ -91,18 +93,59 @@ export function PrActionPanel({
   }
 
 
-  // No PR yet
+  const handleCreatePr = async () => {
+    setCreatingPr(true)
+    setError(null)
+    setBackendMessage(null)
+    try {
+      const response = await createPr(resourceId)
+      if (response.message) setBackendMessage(response.message)
+      onActionComplete?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "PR creation failed")
+    } finally {
+      setCreatingPr(false)
+    }
+  }
+
+  // No PR yet — show Create PR button
   if (!prUrl) {
     return (
       <Card className="border-border bg-card">
-        <CardContent className="flex flex-col items-center justify-center py-10">
-          <GitPullRequest className="h-8 w-8 text-muted-foreground/30" />
-          <p className="mt-3 text-sm font-medium text-muted-foreground">
-            No PR created yet
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            A pull request will be generated once analysis completes.
-          </p>
+        <CardContent className="flex flex-col items-center justify-center gap-4 py-10">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-chart-2/10">
+            <GitBranch className="h-6 w-6 text-chart-2" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-foreground">No PR created yet</p>
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              Rewrite IaC via MiniMax and open a GitHub PR for this finding.
+            </p>
+          </div>
+          {error && (
+            <div className="w-full rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+          {backendMessage && (
+            <div className="w-full rounded-lg border border-chart-1/30 bg-chart-1/5 px-3 py-2 text-xs text-chart-1">
+              {backendMessage}
+            </div>
+          )}
+          <Button
+            size="lg"
+            className="gap-2 bg-chart-2 hover:bg-chart-2/90 text-sm font-semibold"
+            style={{ color: "var(--background)" }}
+            onClick={handleCreatePr}
+            disabled={creatingPr}
+          >
+            {creatingPr ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <GitPullRequest className="h-4 w-4" />
+            )}
+            {creatingPr ? "Creating PR…" : "Create PR"}
+          </Button>
         </CardContent>
       </Card>
     )

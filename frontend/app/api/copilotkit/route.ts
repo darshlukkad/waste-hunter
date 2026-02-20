@@ -14,7 +14,9 @@ const serviceAdapter = new BedrockAdapter({
 })
 
 export const POST = async (req: Request) => {
-  const runtime = new CopilotRuntime()
+  const runtime = new CopilotRuntime({
+    delegateAgentProcessingToServiceAdapter: true,
+  })
   const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
     runtime,
     serviceAdapter,

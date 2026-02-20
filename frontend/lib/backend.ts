@@ -103,6 +103,36 @@ export async function fetchFinding(resourceId: string): Promise<BackendFinding |
   return response.json() as Promise<BackendFinding>
 }
 
+export interface ScanResponse {
+  status: string
+  scanned_at: string
+  cpu_threshold_pct: number
+  lookback_minutes: number
+  total_idle: number
+  new_findings: number
+  updated_findings: number
+  findings: BackendFinding[]
+}
+
+export async function triggerScan(
+  cpuThreshold = 10.0,
+  lookbackMinutes = 60
+): Promise<ScanResponse> {
+  return fetchJson<ScanResponse>("/api/scan", {
+    method: "POST",
+    body: JSON.stringify({
+      cpu_threshold_pct: cpuThreshold,
+      lookback_minutes: lookbackMinutes,
+    }),
+  })
+}
+
+export async function createPr(resourceId: string): Promise<BackendActionResponse> {
+  return fetchJson<BackendActionResponse>(`/api/create_pr/${resourceId}`, {
+    method: "POST",
+  })
+}
+
 export async function approveFinding(resourceId: string): Promise<BackendActionResponse> {
   return fetchJson<BackendActionResponse>(`/api/approve/${resourceId}`, {
     method: "POST",

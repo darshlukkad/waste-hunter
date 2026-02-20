@@ -1,8 +1,10 @@
 "use client"
 
 import Link from "next/link"
+import { useState } from "react"
 import { type BlastRisk, type TriggerStatus } from "@/lib/data"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Server,
   Database,
@@ -13,9 +15,11 @@ import {
   Clock,
   XCircle,
   Loader2,
+  ScanSearch,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFindings } from "@/hooks/use-findings"
+import { triggerScan } from "@/lib/backend"
 
 const riskConfig: Record<BlastRisk, { label: string; className: string }> = {
   SAFE: {
@@ -73,7 +77,27 @@ const serviceIcons: Record<string, typeof Server> = {
 }
 
 export function TriggersList() {
-  const { data: triggers, loading, error } = useFindings()
+  const { data: triggers, loading, error, refetch } = useFindings()
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<string | null>(null)
+
+  const handleScan = async () => {
+    setScanning(true)
+    setScanResult(null)
+    try {
+      const result = await triggerScan(10.0, 60)
+      setScanResult(
+        result.total_idle === 0
+          ? "All instances healthy — no idle resources detected."
+          : `Found ${result.total_idle} idle instance(s). ${result.new_findings} new finding(s) added.`
+      )
+      refetch()
+    } catch (err) {
+      setScanResult(err instanceof Error ? err.message : "Scan failed")
+    } finally {
+      setScanning(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -98,10 +122,39 @@ export function TriggersList() {
         <h2 className="text-sm font-semibold text-foreground">
           Active Triggers
         </h2>
-        <span className="text-xs text-muted-foreground">
-          {triggers.length} findings
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">
+            {triggers.length} findings
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5 px-3 text-xs"
+            onClick={handleScan}
+            disabled={scanning}
+          >
+            {scanning ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ScanSearch className="h-3.5 w-3.5" />
+            )}
+            {scanning ? "Scanning…" : "Scan Now"}
+          </Button>
+        </div>
       </div>
+
+      {scanResult && (
+        <div className={cn(
+          "rounded-lg border px-3 py-2 text-xs",
+          scanResult.includes("healthy") || scanResult.includes("0 idle")
+            ? "border-chart-1/30 bg-chart-1/5 text-chart-1"
+            : scanResult.includes("failed") || scanResult.includes("Failed")
+              ? "border-destructive/30 bg-destructive/5 text-destructive"
+              : "border-chart-2/30 bg-chart-2/5 text-chart-2"
+        )}>
+          {scanResult}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         {triggers.length === 0 && (

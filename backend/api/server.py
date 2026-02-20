@@ -42,6 +42,14 @@ def _get_neo4j_checker():
     from graph.blast_radius import BlastRadiusChecker
     return BlastRadiusChecker.from_env()
 
+def _get_scanner():
+    from scanner.datadog_scanner import DatadogScanner
+    return DatadogScanner.from_env()
+
+def _get_pr_creator():
+    from github_pr.pr_creator import PRCreator
+    return PRCreator.from_env()
+
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -116,6 +124,11 @@ PR_STATUS: dict[str, str] = {
 class RejectRequest(BaseModel):
     reason: str
     rejected_by: str = "unknown"
+
+class ScanRequest(BaseModel):
+    cpu_threshold_pct: float = 10.0
+    lookback_minutes: int = 60
+    tag_filter: str = "managed_by:wastehunter"
 
 
 # ---------------------------------------------------------------------------
@@ -241,4 +254,101 @@ def reject_pr(resource_id: str, body: RejectRequest):
         "pr_number": finding["pr_number"],
         "reason":    body.reason,
         "message":   f"PR #{finding['pr_number']} closed. Reason recorded in agent memory.",
+    }
+
+
+@app.post("/api/scan")
+def trigger_scan(body: ScanRequest = ScanRequest()):
+    """
+    Query Datadog for the last N minutes of CPU usage on all wastehunter-tagged
+    instances. Any instance with avg CPU < threshold is flagged as idle and
+    added/updated in the FINDINGS list. Returns the list of newly detected findings.
+    """
+    try:
+        scanner  = _get_scanner()
+        detected = scanner.scan(
+            tag_filter        = body.tag_filter,
+            cpu_threshold_pct = body.cpu_threshold_pct,
+            lookback_minutes  = body.lookback_minutes,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Datadog scan failed: {exc}")
+
+    new_findings: list[dict] = []
+    updated_findings: list[dict] = []
+
+    for f in detected:
+        resource_id = f["resource_id"]
+        existing = next((x for x in FINDINGS if x["resource_id"] == resource_id), None)
+
+        if existing is None:
+            # Brand-new finding — add to FINDINGS
+            FINDINGS.append(f)
+            PR_STATUS.setdefault(resource_id, f.get("pr_status") or "")
+            new_findings.append(f)
+        else:
+            # Update CPU metrics and scanned_at on the existing finding
+            existing["cpu_avg_pct"]    = f["cpu_avg_pct"]
+            existing["cpu_p95_pct"]    = f["cpu_p95_pct"]
+            existing["memory_avg_pct"] = f["memory_avg_pct"]
+            existing["scanned_at"]     = f["scanned_at"]
+            existing["evidence"]       = f["evidence"]
+            updated_findings.append(existing)
+
+    return {
+        "status":           "ok",
+        "scanned_at":       datetime.now(timezone.utc).isoformat(),
+        "cpu_threshold_pct": body.cpu_threshold_pct,
+        "lookback_minutes": body.lookback_minutes,
+        "total_idle":       len(detected),
+        "new_findings":     len(new_findings),
+        "updated_findings": len(updated_findings),
+        "findings":         detected,
+    }
+
+
+@app.post("/api/create_pr/{resource_id}")
+def create_pr(resource_id: str):
+    """
+    Trigger MiniMax IaC rewrite + GitHub PR creation for a specific finding.
+    Updates the in-memory finding with the resulting PR URL and status.
+    """
+    finding = next((f for f in FINDINGS if f["resource_id"] == resource_id), None)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    if finding.get("pr_url"):
+        raise HTTPException(status_code=400, detail=f"PR already exists: {finding['pr_url']}")
+
+    try:
+        creator = _get_pr_creator()
+        result = creator.create_downsize_pr(
+            resource_id         = resource_id,
+            from_type           = finding["current_type"],
+            to_type             = finding["recommended_type"],
+            monthly_savings_usd = float(finding.get("monthly_savings_usd", 0)),
+            annual_savings_usd  = float(finding.get("annual_savings_usd", 0)),
+            blast_risk          = finding.get("blast_risk", "LOW"),
+            blast_reasons       = finding.get("blast_reasons", []),
+            resource_name       = finding.get("name", resource_id),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PR creation failed: {exc}")
+
+    # Update in-memory finding so frontend reflects new PR immediately
+    finding["pr_url"]      = result.pr_url
+    finding["pr_number"]   = result.pr_number
+    finding["pr_branch"]   = result.branch
+    finding["pr_status"]   = "open"
+    finding["pr_is_draft"] = result.is_draft
+    finding["files_changed"] = result.files_changed
+    PR_STATUS[resource_id] = "open"
+
+    return {
+        "status":    "created",
+        "pr_url":    result.pr_url,
+        "pr_number": result.pr_number,
+        "pr_branch": result.branch,
+        "is_draft":  result.is_draft,
+        "message":   f"PR #{result.pr_number} created. Savings: ${result.monthly_savings_usd:.2f}/month pending approval.",
     }
