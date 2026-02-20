@@ -1,0 +1,19 @@
+# ── MCP Server ────────────────────────────────────────────────────────────────
+mcp>=1.0.0
+
+# ── AWS Bedrock + Anthropic SDK ───────────────────────────────────────────────
+anthropic[bedrock]>=0.40.0
+boto3>=1.34.0
+
+# ── Neo4j  (Phase 2 — Blast Radius) ──────────────────────────────────────────
+neo4j>=5.20.0
+
+# ── MiniMax  (Phase 3 — IaC code rewrite) ────────────────────────────────────
+httpx>=0.27.0          # MiniMax REST API calls
+
+# ── GitHub  (Phase 3 — PR creation) ──────────────────────────────────────────
+PyGithub>=2.3.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+pydantic>=2.7.0
