@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useMemo, useCallback } from "react"
 import type { Trigger, BlastRisk } from "@/lib/data"
 import { TopNav } from "@/components/top-nav"
 import { CodeDiff } from "@/components/code-diff"
@@ -45,39 +46,55 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
   const risk = riskConfig[trigger.blastRisk]
   const ServiceIcon = serviceIcons[trigger.service] || Server
 
-  // Expose finding context to the AI copilot
+  // Memoize to avoid re-registering CopilotKit context on every render
+  const findingValue = useMemo(() => ({
+    resourceName: trigger.resourceName,
+    resourceId: trigger.resourceId,
+    service: trigger.service,
+    region: trigger.region,
+    currentInstance: trigger.currentInstance,
+    recommendedInstance: trigger.recommendedInstance,
+    monthlySavings: trigger.monthlySavings,
+    yearlySavings: trigger.yearlySavings,
+    blastRisk: trigger.blastRisk,
+    status: trigger.status,
+    detectedAt: trigger.detectedAt,
+    aiReasoning: trigger.aiReasoning,
+    copilotSummary: trigger.copilotSummary,
+    prUrl: trigger.prUrl,
+    prTitle: trigger.prTitle,
+    prStatus: trigger.prStatus,
+  }), [
+    trigger.resourceName, trigger.resourceId, trigger.service, trigger.region,
+    trigger.currentInstance, trigger.recommendedInstance, trigger.monthlySavings,
+    trigger.yearlySavings, trigger.blastRisk, trigger.status, trigger.detectedAt,
+    trigger.aiReasoning, trigger.copilotSummary, trigger.prUrl, trigger.prTitle,
+    trigger.prStatus,
+  ])
+
   useCopilotReadable({
     description: "The current cloud resource finding being reviewed",
-    value: {
-      resourceName: trigger.resourceName,
-      resourceId: trigger.resourceId,
-      service: trigger.service,
-      region: trigger.region,
-      currentInstance: trigger.currentInstance,
-      recommendedInstance: trigger.recommendedInstance,
-      monthlySavings: trigger.monthlySavings,
-      yearlySavings: trigger.yearlySavings,
-      blastRisk: trigger.blastRisk,
-      status: trigger.status,
-      detectedAt: trigger.detectedAt,
-      aiReasoning: trigger.aiReasoning,
-      copilotSummary: trigger.copilotSummary,
-      prUrl: trigger.prUrl,
-      prTitle: trigger.prTitle,
-      prStatus: trigger.prStatus,
-    },
+    value: findingValue,
   })
+
+  const handleApprove = useCallback(async () => {
+    await approveFinding(trigger.resourceId)
+    onActionComplete?.()
+    return `Approved ${trigger.resourceName}. The PR will be merged to downsize from ${trigger.currentInstance} to ${trigger.recommendedInstance}, saving $${trigger.monthlySavings}/mo.`
+  }, [trigger.resourceId, trigger.resourceName, trigger.currentInstance, trigger.recommendedInstance, trigger.monthlySavings, onActionComplete])
+
+  const handleReject = useCallback(async ({ reason }: { reason: string }) => {
+    await rejectFinding(trigger.resourceId, reason)
+    onActionComplete?.()
+    return `Rejected ${trigger.resourceName}. Reason: ${reason}`
+  }, [trigger.resourceId, trigger.resourceName, onActionComplete])
 
   // Allow the AI to approve the finding
   useCopilotAction({
     name: "approveFinding",
     description: "Approve the cost-saving downsize recommendation and merge the pull request",
     parameters: [],
-    handler: async () => {
-      await approveFinding(trigger.resourceId)
-      onActionComplete?.()
-      return `Approved ${trigger.resourceName}. The PR will be merged to downsize from ${trigger.currentInstance} to ${trigger.recommendedInstance}, saving $${trigger.monthlySavings}/mo.`
-    },
+    handler: handleApprove,
   })
 
   // Allow the AI to reject the finding
@@ -92,11 +109,7 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
         required: true,
       },
     ],
-    handler: async ({ reason }: { reason: string }) => {
-      await rejectFinding(trigger.resourceId, reason)
-      onActionComplete?.()
-      return `Rejected ${trigger.resourceName}. Reason: ${reason}`
-    },
+    handler: handleReject,
   })
 
   return (
