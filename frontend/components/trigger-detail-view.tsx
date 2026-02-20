@@ -6,6 +6,7 @@ import { TopNav } from "@/components/top-nav"
 import { CodeDiff } from "@/components/code-diff"
 import { AiReasoning } from "@/components/ai-reasoning"
 import { PrActionPanel } from "@/components/pr-action-panel"
+import { WorkflowStatus } from "@/components/workflow-status"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -34,9 +35,10 @@ const serviceIcons: Record<string, typeof Server> = {
 
 interface TriggerDetailViewProps {
   trigger: Trigger
+  onActionComplete?: () => void
 }
 
-export function TriggerDetailView({ trigger }: TriggerDetailViewProps) {
+export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailViewProps) {
   const risk = riskConfig[trigger.blastRisk]
   const ServiceIcon = serviceIcons[trigger.service] || Server
 
@@ -124,11 +126,23 @@ export function TriggerDetailView({ trigger }: TriggerDetailViewProps) {
                 Pull Request
               </h2>
               <PrActionPanel
+                resourceId={trigger.resourceId}
                 prUrl={trigger.prUrl}
                 prTitle={trigger.prTitle}
                 status={trigger.status}
+                onActionComplete={onActionComplete}
               />
             </section>
+
+            {/* Section: Backend Workflow */}
+            {trigger.workflow && (
+              <section>
+                <h2 className="mb-3 text-sm font-semibold text-foreground">
+                  Copilot Workflow
+                </h2>
+                <WorkflowStatus workflow={trigger.workflow} />
+              </section>
+            )}
 
             {/* Section: AI Reasoning */}
             <section>

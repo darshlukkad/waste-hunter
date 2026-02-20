@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { triggers, type BlastRisk, type TriggerStatus } from "@/lib/data"
+import { type BlastRisk, type TriggerStatus } from "@/lib/data"
 import { Badge } from "@/components/ui/badge"
 import {
   Server,
@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useFindings } from "@/hooks/use-findings"
 
 const riskConfig: Record<BlastRisk, { label: string; className: string }> = {
   SAFE: {
@@ -72,6 +73,25 @@ const serviceIcons: Record<string, typeof Server> = {
 }
 
 export function TriggersList() {
+  const { data: triggers, loading, error } = useFindings()
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading findings...
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs text-destructive">
+        Failed to load findings: {error}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -84,6 +104,11 @@ export function TriggersList() {
       </div>
 
       <div className="flex flex-col gap-2">
+        {triggers.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border py-8 text-center text-xs text-muted-foreground">
+            No findings yet. The next backend scan will populate this list.
+          </div>
+        )}
         {triggers.map((trigger) => {
           const risk = riskConfig[trigger.blastRisk]
           const status = statusConfig[trigger.status]

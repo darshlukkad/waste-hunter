@@ -12,6 +12,22 @@ export interface ReasoningStep {
   detail: string
 }
 
+export type WorkflowStepStatus = "complete" | "active" | "pending" | "failed"
+
+export interface WorkflowStep {
+  id: string
+  label: string
+  status: WorkflowStepStatus
+  detail?: string
+}
+
+export interface WorkflowState {
+  label: string
+  status: "idle" | "running" | "waiting" | "approved" | "rejected"
+  steps: WorkflowStep[]
+  lastUpdated?: string
+}
+
 export interface Trigger {
   id: string
   resourceName: string
@@ -30,6 +46,8 @@ export interface Trigger {
   prUrl: string | null
   prTitle: string
   copilotSummary: string
+  prStatus?: "open" | "merged" | "closed"
+  workflow?: WorkflowState
 }
 
 export interface SavingsOverview {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -9,40 +9,87 @@ import {
   CheckCircle2,
   XCircle,
   ExternalLink,
+  Loader2,
 } from "lucide-react"
+import { approveFinding, rejectFinding } from "@/lib/backend"
+import type { TriggerStatus } from "@/lib/data"
 
 interface PrActionPanelProps {
+  resourceId: string
   prUrl: string | null
   prTitle: string
-  status: string
+  status: TriggerStatus
+  onActionComplete?: () => void
 }
 
-export function PrActionPanel({ prUrl, prTitle, status }: PrActionPanelProps) {
+export function PrActionPanel({
+  resourceId,
+  prUrl,
+  prTitle,
+  status,
+  onActionComplete,
+}: PrActionPanelProps) {
   const [actionTaken, setActionTaken] = useState<"approved" | "rejected" | null>(
     status === "approved" ? "approved" : status === "rejected" ? "rejected" : null
   )
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [backendMessage, setBackendMessage] = useState<string | null>(null)
 
-  const handleApprove = () => {
-    setActionTaken("approved")
-    setShowRejectInput(false)
-  }
+  useEffect(() => {
+    setActionTaken(
+      status === "approved" ? "approved" : status === "rejected" ? "rejected" : null
+    )
+  }, [status])
 
-  const handleReject = () => {
-    if (showRejectInput && rejectReason.trim()) {
-      setActionTaken("rejected")
+  const handleApprove = async () => {
+    setSubmitting(true)
+    setError(null)
+    setBackendMessage(null)
+    try {
+      const response = await approveFinding(resourceId)
+      setActionTaken("approved")
       setShowRejectInput(false)
-    } else {
-      setShowRejectInput(true)
+      if (response.message) {
+        setBackendMessage(response.message)
+      }
+      onActionComplete?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Approval failed")
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const handleReset = () => {
-    setActionTaken(null)
-    setShowRejectInput(false)
-    setRejectReason("")
+  const handleReject = async () => {
+    if (!showRejectInput) {
+      setShowRejectInput(true)
+      return
+    }
+    if (!rejectReason.trim()) {
+      setError("Please provide a rejection reason.")
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    setBackendMessage(null)
+    try {
+      const response = await rejectFinding(resourceId, rejectReason.trim())
+      setActionTaken("rejected")
+      setShowRejectInput(false)
+      if (response.message) {
+        setBackendMessage(response.message)
+      }
+      onActionComplete?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rejection failed")
+    } finally {
+      setSubmitting(false)
+    }
   }
+
 
   // No PR yet
   if (!prUrl) {
@@ -117,12 +164,17 @@ export function PrActionPanel({ prUrl, prTitle, status }: PrActionPanelProps) {
                 Reason: {rejectReason}
               </p>
             )}
-            <button
-              onClick={handleReset}
-              className="mt-3 text-xs text-primary hover:underline"
-            >
-              Undo action
-            </button>
+            {backendMessage && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {backendMessage}
+              </p>
+            )}
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
           </div>
         )}
 
@@ -144,15 +196,21 @@ export function PrActionPanel({ prUrl, prTitle, status }: PrActionPanelProps) {
                 className="flex-1 gap-2 bg-chart-1 hover:bg-chart-1/90 text-sm font-semibold"
                 style={{ color: "var(--background)" }}
                 onClick={handleApprove}
+                disabled={submitting}
               >
-                <CheckCircle2 className="h-4 w-4" />
-                Approve PR
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                {submitting ? "Approving..." : "Approve PR"}
               </Button>
               <Button
                 variant="outline"
                 size="lg"
                 className="flex-1 gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 text-sm font-semibold"
                 onClick={handleReject}
+                disabled={submitting}
               >
                 <XCircle className="h-4 w-4" />
                 {showRejectInput ? "Submit Rejection" : "Reject PR"}

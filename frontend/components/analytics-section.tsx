@@ -1,13 +1,11 @@
 "use client"
 
-import { getSavingsOverview } from "@/lib/data"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   TrendingDown,
   DollarSign,
   CheckCircle2,
   Clock,
-  XCircle,
 } from "lucide-react"
 import {
   AreaChart,
@@ -18,9 +16,12 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
+import { useFindings } from "@/hooks/use-findings"
+import { buildSavingsOverview } from "@/lib/overview"
 
 export function AnalyticsSection() {
-  const overview = getSavingsOverview()
+  const { data: triggers, loading, error } = useFindings()
+  const overview = buildSavingsOverview(triggers)
 
   const statCards = [
     {
@@ -55,6 +56,12 @@ export function AnalyticsSection() {
 
   return (
     <div className="flex flex-col gap-6">
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs text-destructive">
+          Failed to load analytics: {error}
+        </div>
+      )}
+
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards.map((stat) => (
@@ -174,6 +181,11 @@ export function AnalyticsSection() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          {loading && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Loading live metrics...
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
