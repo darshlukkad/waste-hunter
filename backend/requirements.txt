@@ -14,6 +14,10 @@ httpx>=0.27.0          # MiniMax REST API calls
 # ── GitHub  (Phase 3 — PR creation) ──────────────────────────────────────────
 PyGithub>=2.3.0
 
+# ── Backend API Server (Phase 4) ─────────────────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
 # ── Utilities ─────────────────────────────────────────────────────────────────
 python-dotenv>=1.0.0
 pydantic>=2.7.0

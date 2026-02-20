@@ -1,6 +1,18 @@
 export type TriggerStatus = "active" | "idle" | "downsized" | "paused"
 export type TriggerSeverity = "low" | "medium" | "high" | "critical"
 
+export interface AgentFinding {
+  current_type: string
+  recommended_type: string
+  annual_savings_usd: number
+  blast_risk: string
+  blast_reasons: string[]
+  confidence: string
+  pr_url: string
+  pr_number: number
+  pr_is_draft: boolean
+}
+
 export interface Trigger {
   id: string
   name: string
@@ -19,6 +31,7 @@ export interface Trigger {
   stateHistory: StateEvent[]
   metrics: MetricPoint[]
   config: TriggerConfig
+  finding?: AgentFinding
 }
 
 export interface StateEvent {
@@ -75,6 +88,42 @@ function generateMetrics(hours: number): MetricPoint[] {
 }
 
 export const triggers: Trigger[] = [
+  {
+    id: "i-0a1b2c3d4e5f67890",
+    name: "prod-api-server-03",
+    service: "Recommendation Engine",
+    region: "us-east-1",
+    status: "idle",
+    severity: "critical",
+    idleSince: "2026-02-13T00:00:00Z",
+    currentCost: 551.0,
+    projectedCost: 138.0,
+    savings: 413.0,
+    cpu: 3.2,
+    memory: 14.7,
+    requests: 0,
+    lastActive: "2026-02-12T23:45:00Z",
+    stateHistory: [
+      { id: "agent-se-1", timestamp: "2026-02-13T00:00:00Z", fromState: "active", toState: "idle", reason: "CPU avg 3.2% over 7 days — below 10% threshold", actor: "WasteHunter Agent" },
+    ],
+    metrics: generateMetrics(168),
+    config: { idleThreshold: 60, cooldownPeriod: 15, minInstances: 1, maxInstances: 4, scaleDownPercent: 75, autoDownsize: false },
+    finding: {
+      current_type: "m5.4xlarge",
+      recommended_type: "m5.xlarge",
+      annual_savings_usd: 4956.0,
+      blast_risk: "CRITICAL",
+      blast_reasons: [
+        "HIGH-criticality RDS 'recommendation-db' connected via CONNECTS_TO (1 hop)",
+        "HIGH-criticality LoadBalancer 'prod-api-alb' connected via ROUTES_TO (1 hop)",
+        "Previous downsize rejected by alice@company.com: 'Black Friday traffic spike'",
+      ],
+      confidence: "HIGH",
+      pr_url: "https://github.com/darshlukkad/waste-hunter-dummy/pull/1",
+      pr_number: 1,
+      pr_is_draft: true,
+    },
+  },
   {
     id: "trg-001",
     name: "auth-service-prod",

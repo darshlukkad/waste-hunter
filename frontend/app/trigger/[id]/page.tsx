@@ -5,6 +5,7 @@ import { TriggerDetailHeader } from "@/components/trigger-detail-header"
 import { StateTimeline } from "@/components/state-timeline"
 import { TriggerMetrics } from "@/components/trigger-metrics"
 import { TriggerConfigPanel } from "@/components/trigger-config"
+import { CopilotTriggerDetail } from "@/components/copilot-trigger-detail"
 
 export function generateStaticParams() {
   return triggers.map((t) => ({ id: t.id }))
@@ -22,7 +23,7 @@ export default async function TriggerDetailPage({
     notFound()
   }
 
-  return (
+  const pageContent = (
     <div className="min-h-screen bg-background">
       <TopNav />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -50,4 +51,14 @@ export default async function TriggerDetailPage({
       </main>
     </div>
   )
+
+  if (trigger.finding) {
+    return (
+      <CopilotTriggerDetail trigger={trigger}>
+        {pageContent}
+      </CopilotTriggerDetail>
+    )
+  }
+
+  return pageContent
 }
