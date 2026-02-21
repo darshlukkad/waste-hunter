@@ -285,40 +285,29 @@ def trigger_scan(body: ScanRequest = ScanRequest()):
     new_findings: list[dict] = []
     updated_findings: list[dict] = []
 
-    # Snapshot of names/ids already in FINDINGS *before* this scan so that
-    # collapsing multiple ASG instances (same name, different resource_id) into
-    # one finding doesn't make the extras look like "updated" pre-existing ones.
-    pre_existing_names = {x.get("name") for x in FINDINGS}
-    pre_existing_ids   = {x["resource_id"] for x in FINDINGS}
+    # Dedup by resource_id only — each instance ID is a separate finding,
+    # even if multiple share the same name (e.g. ASG instances).
+    pre_existing_ids = {x["resource_id"] for x in FINDINGS}
 
     for f in detected:
         resource_id = f["resource_id"]
-        name = f.get("name", resource_id)
 
-        # Check against snapshot (not the growing FINDINGS list) to avoid
-        # treating same-scan duplicates as pre-existing.
-        was_pre_existing = name in pre_existing_names or resource_id in pre_existing_ids
-
-        existing = next(
-            (x for x in FINDINGS if x.get("name") == name or x["resource_id"] == resource_id),
-            None,
-        )
+        existing = next((x for x in FINDINGS if x["resource_id"] == resource_id), None)
 
         if existing is None:
-            # Brand-new finding — add to FINDINGS and start PR creation
+            # Brand-new instance — add as its own finding and start PR creation
             FINDINGS.append(f)
             PR_STATUS.setdefault(resource_id, f.get("pr_status") or "")
             new_findings.append(f)
             _maybe_start_pr(f)
-        elif was_pre_existing:
-            # Truly pre-existing finding — refresh metrics only
+        else:
+            # Same resource_id seen before — just refresh metrics
             existing["cpu_avg_pct"]    = f["cpu_avg_pct"]
             existing["cpu_p95_pct"]    = f["cpu_p95_pct"]
             existing["memory_avg_pct"] = f["memory_avg_pct"]
             existing["scanned_at"]     = f["scanned_at"]
             existing["evidence"]       = f["evidence"]
             updated_findings.append(existing)
-        # else: same-scan duplicate collapsed into already-added finding — skip
 
     # total_idle = deduplicated logical findings
     total_idle = len(new_findings) + len(updated_findings)
