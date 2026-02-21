@@ -1,5 +1,5 @@
 """
-Mock Datadog telemetry data for FinOps Waste Hunter demo.
+Mock Datadog telemetry data for Minimalist demo.
 
 In production, this module would be replaced by live Datadog API calls:
   POST https://api.datadoghq.com/api/v1/query

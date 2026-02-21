@@ -15,7 +15,7 @@ export function TopNav() {
           <Crosshair className="h-4 w-4 text-primary-foreground" />
         </div>
         <span className="text-sm font-bold tracking-tight text-foreground">
-          FinOps Waste Hunter
+          Minimalist
         </span>
       </div>
 

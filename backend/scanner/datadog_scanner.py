@@ -1,5 +1,5 @@
 """
-FinOps Waste Hunter — Real Datadog Scanner
+Minimalist — Real Datadog Scanner
 ==========================================
 Queries the Datadog Metrics API for the last N minutes of CPU usage
 across all wastehunter-tagged EC2 instances.

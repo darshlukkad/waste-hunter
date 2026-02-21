@@ -8,12 +8,14 @@ import {
   Clock,
 } from "lucide-react"
 import {
-  AreaChart,
-  Area,
+  ComposedChart,
+  Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
 } from "recharts"
 import { useFindings } from "@/hooks/use-findings"
@@ -84,54 +86,28 @@ export function AnalyticsSection() {
         ))}
       </div>
 
-      {/* Savings trend chart */}
+      {/* Findings + Savings chart */}
       <Card className="border-border bg-card">
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-semibold text-foreground">
-                Savings Over Time
+                Findings & Savings by Month
               </h3>
               <p className="text-xs text-muted-foreground">
-                Realized savings vs. projected potential
+                Detected vs approved findings, with cumulative monthly savings
               </p>
             </div>
+            {loading && (
+              <span className="text-xs text-muted-foreground">Updating…</span>
+            )}
           </div>
-          <div className="h-[180px]">
+          <div className="h-50">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={overview.savingsHistory}>
-                <defs>
-                  <linearGradient id="savedGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="0%"
-                      stopColor="var(--chart-1)"
-                      stopOpacity={0.3}
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor="var(--chart-1)"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                  <linearGradient
-                    id="projectedGrad"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor="var(--chart-2)"
-                      stopOpacity={0.15}
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor="var(--chart-2)"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
+              <ComposedChart
+                data={overview.savingsHistory}
+                margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
+              >
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="var(--border)"
@@ -143,12 +119,25 @@ export function AnalyticsSection() {
                   axisLine={false}
                   tickLine={false}
                 />
+                {/* Left axis: finding counts */}
                 <YAxis
+                  yAxisId="count"
+                  orientation="left"
                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(v: number) => `$${v}`}
-                  width={45}
+                  width={28}
+                  allowDecimals={false}
+                />
+                {/* Right axis: savings in $ */}
+                <YAxis
+                  yAxisId="savings"
+                  orientation="right"
+                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v}`}
+                  width={44}
                 />
                 <Tooltip
                   contentStyle={{
@@ -158,34 +147,47 @@ export function AnalyticsSection() {
                     fontSize: "12px",
                     color: "var(--foreground)",
                   }}
-                  formatter={(v: number, name: string) => [
-                    `$${v.toLocaleString()}`,
-                    name === "saved" ? "Realized" : "Projected",
-                  ]}
+                  formatter={(value: number, name: string) => {
+                    if (name === "savings") return [`$${value.toLocaleString()}`, "Savings"]
+                    if (name === "detected") return [value, "Detected"]
+                    if (name === "approved") return [value, "Approved"]
+                    return [value, name]
+                  }}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="projected"
-                  stroke="var(--chart-2)"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 4"
-                  fill="url(#projectedGrad)"
+                <Legend
+                  wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+                  formatter={(value) =>
+                    value === "detected" ? "Detected" : value === "approved" ? "Approved" : "Savings ($)"
+                  }
                 />
-                <Area
+                <Bar
+                  yAxisId="count"
+                  dataKey="detected"
+                  fill="var(--chart-2)"
+                  fillOpacity={0.35}
+                  radius={[3, 3, 0, 0]}
+                  maxBarSize={28}
+                />
+                <Bar
+                  yAxisId="count"
+                  dataKey="approved"
+                  fill="var(--chart-1)"
+                  fillOpacity={0.8}
+                  radius={[3, 3, 0, 0]}
+                  maxBarSize={28}
+                />
+                <Line
+                  yAxisId="savings"
                   type="monotone"
-                  dataKey="saved"
-                  stroke="var(--chart-1)"
+                  dataKey="savings"
+                  stroke="var(--chart-3)"
                   strokeWidth={2}
-                  fill="url(#savedGrad)"
+                  dot={{ r: 3, fill: "var(--chart-3)" }}
+                  activeDot={{ r: 5 }}
                 />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
-          {loading && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Loading live metrics...
-            </p>
-          )}
         </CardContent>
       </Card>
     </div>

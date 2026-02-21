@@ -1,5 +1,5 @@
 """
-FinOps Waste Hunter — Bedrock Agent (Phase 1 + 2 + 3)
+Minimalist — Bedrock Agent (Phase 1 + 2 + 3)
 ======================================================
 Agentic tool-use loop powered by Amazon Bedrock (Claude Sonnet 4.5).
 Calls the MCP server tools directly to detect waste, assess blast radius,
@@ -361,7 +361,7 @@ class WasteHunterAgent:
             )
 
         print("\n" + "═" * 60)
-        print("  FinOps Waste Hunter  |  Phase 1 — Detect")
+        print("  Minimalist  |  Phase 1 — Detect")
         print("═" * 60)
         print(f"  Model   : {MODEL_ID}")
         print(f"  Region  : {self.aws_region}")

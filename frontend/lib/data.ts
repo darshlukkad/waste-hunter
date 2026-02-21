@@ -48,6 +48,7 @@ export interface Trigger {
   copilotSummary: string
   prStatus?: "open" | "merged" | "closed"
   workflow?: WorkflowState
+  action?: string
 }
 
 export interface SavingsOverview {
@@ -57,7 +58,7 @@ export interface SavingsOverview {
   approvedCount: number
   rejectedCount: number
   pendingCount: number
-  savingsHistory: { month: string; saved: number; projected: number }[]
+  savingsHistory: { month: string; detected: number; approved: number; savings: number }[]
 }
 
 // --- Mock Data ---
@@ -369,12 +370,12 @@ export function getSavingsOverview(): SavingsOverview {
     rejectedCount: rejected.length,
     pendingCount: pending.length,
     savingsHistory: [
-      { month: "Sep", saved: 320, projected: 1800 },
-      { month: "Oct", saved: 580, projected: 1950 },
-      { month: "Nov", saved: 870, projected: 2100 },
-      { month: "Dec", saved: 1240, projected: 2200 },
-      { month: "Jan", saved: 1650, projected: 2226 },
-      { month: "Feb", saved: 2114, projected: 2226 },
+      { month: "Sep", detected: 3, approved: 2, savings: 310 },
+      { month: "Oct", detected: 4, approved: 3, savings: 580 },
+      { month: "Nov", detected: 5, approved: 4, savings: 870 },
+      { month: "Dec", detected: 4, approved: 3, savings: 1120 },
+      { month: "Jan", detected: 6, approved: 5, savings: 1540 },
+      { month: "Feb", detected: 3, approved: 1, savings: 2114 },
     ],
   }
 }
