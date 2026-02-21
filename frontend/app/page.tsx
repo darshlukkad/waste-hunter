@@ -6,18 +6,17 @@ export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <TopNav />
-      <main className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-5xl px-6 py-8">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground text-balance">
-              Cost Optimization Dashboard
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground text-pretty">
-              AI-detected idle and over-provisioned resources. Review findings,
-              inspect code changes, and approve or reject PRs.
+      <main className="flex-1">
+        <div className="mx-auto max-w-5xl px-6 py-10">
+          <div className="mb-10">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1.5">
+              FinOps Intelligence
             </p>
+            <h1 className="text-xl font-bold tracking-tight text-foreground">
+              Cost Optimization
+            </h1>
           </div>
-          <div className="flex flex-col gap-8">
+          <div className="flex flex-col gap-10">
             <AnalyticsSection />
             <TriggersList />
           </div>

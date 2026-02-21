@@ -10,12 +10,15 @@ import {
   XCircle,
   ExternalLink,
   Loader2,
+  Clock,
 } from "lucide-react"
 import { approveFinding, rejectFinding, getPrProgress } from "@/lib/backend"
 import type { PrProgress } from "@/lib/backend"
 import type { TriggerStatus } from "@/lib/data"
+import { useProgressContext } from "@/contexts/findings-context"
 
 const PR_STEPS: { key: PrProgress["step"]; label: string }[] = [
+  { key: "queued",     label: "Queued — waiting for other PR jobs" },
   { key: "seeding",    label: "Seeding repo files" },
   { key: "reading",    label: "Reading current IaC" },
   { key: "rewriting",  label: "MiniMax rewriting Terraform + K8s" },
@@ -24,7 +27,8 @@ const PR_STEPS: { key: PrProgress["step"]; label: string }[] = [
 ]
 
 function stepIndex(step: PrProgress["step"]): number {
-  return PR_STEPS.findIndex((s) => s.key === step)
+  const idx = PR_STEPS.findIndex((s) => s.key === step)
+  return idx === -1 ? 0 : idx
 }
 
 interface PrActionPanelProps {
@@ -50,7 +54,9 @@ export function PrActionPanel({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [backendMessage, setBackendMessage] = useState<string | null>(null)
-  const [progress, setProgress] = useState<PrProgress | null>(null)
+  const getProgress = useProgressContext()
+  // Seed initial progress from shared context so detail page shows correct state immediately
+  const [progress, setProgress] = useState<PrProgress | null>(() => getProgress(resourceId) ?? null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -97,15 +103,28 @@ export function PrActionPanel({
   if (!prUrl) {
     const currentStepIdx = progress ? stepIndex(progress.step) : 0
     const allDone = progress?.step === "done"
+    const isQueued = progress?.step === "queued"
+
+    const headerLabel = isQueued
+      ? "Queued — waiting for other PRs to finish…"
+      : "Creating PR…"
 
     return (
       <Card className="border-border bg-card">
         <CardContent className="p-5">
-          <p className="text-sm font-semibold text-foreground mb-4">Creating PR…</p>
+          <div className="flex items-center gap-2 mb-4">
+            {isQueued
+              ? <Clock className="h-4 w-4 text-muted-foreground animate-pulse" />
+              : <Loader2 className="h-4 w-4 text-chart-2 animate-spin" />
+            }
+            <p className="text-sm font-semibold text-foreground">{headerLabel}</p>
+          </div>
           <div className="flex flex-col gap-2.5">
-            {PR_STEPS.map((s, i) => {
-              const isDone   = allDone || i < currentStepIdx
-              const isActive = !allDone && i === currentStepIdx
+            {PR_STEPS.filter(s => s.key !== "queued").map((s, i) => {
+              // offset by 1 because we removed "queued" from the visible list
+              const realIdx = i + 1
+              const isDone   = allDone || realIdx < currentStepIdx
+              const isActive = !allDone && !isQueued && realIdx === currentStepIdx
               return (
                 <div key={s.key} className="flex items-center gap-2.5 text-xs">
                   {isDone ? (

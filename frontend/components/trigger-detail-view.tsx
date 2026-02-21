@@ -9,14 +9,12 @@ import { AiReasoning } from "@/components/ai-reasoning"
 import { PrActionPanel } from "@/components/pr-action-panel"
 import { WorkflowStatus } from "@/components/workflow-status"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   ArrowLeft,
   ArrowRight,
   Globe,
   Server,
   Database,
-  DollarSign,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCopilotReadable, useCopilotAction } from "@copilotkit/react-core"
@@ -24,12 +22,10 @@ import { CopilotPopup } from "@copilotkit/react-ui"
 import { approveFinding, rejectFinding } from "@/lib/backend"
 
 const riskConfig: Record<BlastRisk, { className: string }> = {
-  SAFE: { className: "bg-chart-1/15 text-chart-1 border-chart-1/30" },
-  LOW: { className: "bg-chart-2/15 text-chart-2 border-chart-2/30" },
-  MEDIUM: { className: "bg-chart-3/15 text-chart-3 border-chart-3/30" },
-  CRITICAL: {
-    className: "bg-destructive/15 text-destructive border-destructive/30",
-  },
+  SAFE:     { className: "bg-chart-1/10 text-chart-1 border-chart-1/20" },
+  LOW:      { className: "bg-chart-2/10 text-chart-2 border-chart-2/20" },
+  MEDIUM:   { className: "bg-chart-3/10 text-chart-3 border-chart-3/20" },
+  CRITICAL: { className: "bg-destructive/10 text-destructive border-destructive/20" },
 }
 
 const serviceIcons: Record<string, typeof Server> = {
@@ -46,7 +42,6 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
   const risk = riskConfig[trigger.blastRisk]
   const ServiceIcon = serviceIcons[trigger.service] || Server
 
-  // Memoize to avoid re-registering CopilotKit context on every render
   const findingValue = useMemo(() => ({
     resourceName: trigger.resourceName,
     resourceId: trigger.resourceId,
@@ -89,7 +84,6 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
     return `Rejected ${trigger.resourceName}. Reason: ${reason}`
   }, [trigger.resourceId, trigger.resourceName, onActionComplete])
 
-  // Allow the AI to approve the finding
   useCopilotAction({
     name: "approveFinding",
     description: "Approve the cost-saving downsize recommendation and merge the pull request",
@@ -97,7 +91,6 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
     handler: handleApprove,
   })
 
-  // Allow the AI to reject the finding
   useCopilotAction({
     name: "rejectFinding",
     description: "Reject the cost-saving recommendation if it's not safe or suitable",
@@ -116,83 +109,66 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
     <div className="flex min-h-screen flex-col bg-background">
       <TopNav />
       <main className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-4xl px-6 py-8">
-          {/* Back link */}
+        <div className="mx-auto max-w-3xl px-6 py-8">
+
+          {/* Back */}
           <Link
             href="/"
-            className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className="mb-8 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to dashboard
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Dashboard
           </Link>
 
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-secondary">
-                <ServiceIcon className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="font-mono text-lg font-bold tracking-tight text-foreground">
-                    {trigger.resourceName}
-                  </h1>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-[10px] font-semibold px-1.5 py-0",
-                      risk.className
-                    )}
-                  >
-                    {trigger.blastRisk}
-                  </Badge>
-                </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="font-mono">{trigger.resourceId}</span>
-                  <span className="flex items-center gap-1">
-                    <Globe className="h-3 w-3" />
-                    {trigger.region}
-                  </span>
-                </div>
-              </div>
+          {/* Resource header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-1">
+              <ServiceIcon className="h-4 w-4 text-muted-foreground" />
+              <h1 className="font-mono text-base font-semibold text-foreground">
+                {trigger.resourceName}
+              </h1>
+              <Badge
+                variant="outline"
+                className={cn("text-[10px] font-semibold px-1.5 py-0 h-4", risk.className)}
+              >
+                {trigger.blastRisk}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="font-mono">{trigger.resourceId}</span>
+              <span className="text-muted-foreground/40">·</span>
+              <span className="flex items-center gap-1">
+                <Globe className="h-3 w-3" />
+                {trigger.region}
+              </span>
             </div>
 
-            {/* Savings banner */}
-            <Card className="mt-4 border-chart-1/20 bg-chart-1/5">
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-chart-1/10">
-                  <DollarSign className="h-5 w-5 text-chart-1" />
-                </div>
-                <div className="flex flex-1 items-center gap-3">
-                  <div>
-                    <span className="font-mono text-sm text-muted-foreground">
-                      {trigger.currentInstance}
-                    </span>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-chart-1" />
-                  <div>
-                    <span className="font-mono text-sm font-semibold text-foreground">
-                      {trigger.recommendedInstance}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-chart-1">
-                    -${trigger.monthlySavings}/mo
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    ${trigger.yearlySavings.toLocaleString()}/yr
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Savings bar */}
+            <div className="mt-4 flex items-center gap-3 rounded-md border border-border/60 bg-secondary/30 px-4 py-3">
+              <span className="font-mono text-sm text-muted-foreground">
+                {trigger.currentInstance}
+              </span>
+              <ArrowRight className="h-3.5 w-3.5 text-chart-1 shrink-0" />
+              <span className="font-mono text-sm font-semibold text-foreground">
+                {trigger.recommendedInstance}
+              </span>
+              <div className="ml-auto text-right">
+                <span className="text-base font-bold text-chart-1">
+                  -${trigger.monthlySavings}
+                  <span className="text-xs font-normal text-muted-foreground">/mo</span>
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  ${trigger.yearlySavings.toLocaleString()}/yr
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Content sections */}
+          {/* Sections */}
           <div className="flex flex-col gap-8">
-            {/* Section: PR Action */}
+
             <section>
-              <h2 className="mb-3 text-sm font-semibold text-foreground">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Pull Request
               </h2>
               <PrActionPanel
@@ -204,19 +180,17 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
               />
             </section>
 
-            {/* Section: Backend Workflow */}
             {trigger.workflow && (
               <section>
-                <h2 className="mb-3 text-sm font-semibold text-foreground">
-                  Copilot Workflow
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Workflow
                 </h2>
                 <WorkflowStatus workflow={trigger.workflow} />
               </section>
             )}
 
-            {/* Section: AI Reasoning */}
             <section>
-              <h2 className="mb-3 text-sm font-semibold text-foreground">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 AI Analysis
               </h2>
               <AiReasoning
@@ -225,13 +199,13 @@ export function TriggerDetailView({ trigger, onActionComplete }: TriggerDetailVi
               />
             </section>
 
-            {/* Section: Code Changes */}
             <section>
-              <h2 className="mb-3 text-sm font-semibold text-foreground">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Code Changes
               </h2>
               <CodeDiff changes={trigger.codeChanges} />
             </section>
+
           </div>
         </div>
       </main>

@@ -9,29 +9,27 @@ export function TopNav() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-6">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
-          <Crosshair className="h-4 w-4 text-primary-foreground" />
-        </div>
-        <span className="text-sm font-bold tracking-tight text-foreground">
-          Minimalist
+    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border/60 bg-background/95 px-6 backdrop-blur">
+      <div className="flex items-center gap-2">
+        <Crosshair className="h-4 w-4 text-foreground" />
+        <span className="text-sm font-semibold tracking-tight text-foreground">
+          WasteHunter
         </span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0 text-muted-foreground"
+          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           aria-label="Toggle theme"
         >
-          <Sun className="h-4 w-4 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
+          <Sun className="h-3.5 w-3.5 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-3.5 w-3.5 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
         </Button>
-        <Avatar className="h-8 w-8">
-          <AvatarFallback className="bg-secondary text-xs font-medium text-foreground">
+        <Avatar className="h-7 w-7">
+          <AvatarFallback className="bg-secondary text-[11px] font-medium text-foreground">
             JD
           </AvatarFallback>
         </Avatar>
