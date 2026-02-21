@@ -1,4 +1,4 @@
-# FinOps Waste Hunter — Full Project Context
+# Minimalist — Full Project Context
 
 > **Hackathon**: AWS × Anthropic × Datadog GenAI Hackathon
 > **Goal**: Autonomous agentic workflow that finds structural cloud waste, validates safety via a Neo4j knowledge graph, rewrites IaC with MiniMax AI, opens GitHub PRs, and lets engineers approve/reject via a CopilotKit-powered human-in-the-loop UI.

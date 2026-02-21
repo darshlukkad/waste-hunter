@@ -1,5 +1,5 @@
 // ============================================================================
-// FinOps Waste Hunter — Neo4j Knowledge Graph Schema
+// Minimalist — Neo4j Knowledge Graph Schema
 // Run this file once to seed the graph for the hackathon demo.
 //
 // Usage (neo4j-shell or Aura Query console):

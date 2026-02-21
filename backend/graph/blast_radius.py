@@ -1,5 +1,5 @@
 """
-FinOps Waste Hunter — Neo4j Blast Radius Checker (Phase 2)
+Minimalist — Neo4j Blast Radius Checker (Phase 2)
 ===========================================================
 Queries the Neo4j knowledge graph to determine whether it is safe to
 downsize a given AWS resource.

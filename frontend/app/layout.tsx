@@ -9,7 +9,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "FinOps Waste Hunter - Cloud Cost Optimization",
+  title: "Minimalist - Cloud Cost Optimization",
   description:
     "Agent-driven findings on wasteful cloud resources. Approve or reject cost-saving changes with confidence.",
   generator: "v0.app",

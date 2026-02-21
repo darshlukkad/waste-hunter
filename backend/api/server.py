@@ -1,5 +1,5 @@
 """
-FinOps Waste Hunter — FastAPI Backend Server
+Minimalist — FastAPI Backend Server
 =============================================
 Exposes the agent pipeline results as a REST API consumed by the Next.js
 frontend. Handles approve/reject actions that operate on the GitHub PR
@@ -15,6 +15,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -53,7 +55,7 @@ def _get_pr_creator():
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
-app = FastAPI(title="FinOps Waste Hunter API", version="1.0.0")
+app = FastAPI(title="Minimalist API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,31 +67,34 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # In-memory state — populated from last agent run
 # ---------------------------------------------------------------------------
-FINDINGS: list[dict] = [
-    {
-        "resource_id":          "i-029da6afe1826bbba",
-        "name":                 "wastehunter-rec-engine",
-        "service":              "Recommendation Engine",
+def _make_finding(resource_id: str, name: str, current_type: str, recommended_type: str,
+                  monthly_savings: float, blast_risk: str = "LOW") -> dict:
+    """Helper to build a finding dict with pr_url=None so PR creation auto-starts."""
+    annual = round(monthly_savings * 12, 2)
+    return {
+        "resource_id":          resource_id,
+        "name":                 name,
+        "service":              "EC2",
         "team":                 "platform",
         "owner":                "team@company.com",
         "region":               "us-west-2",
-        "current_type":         "t3.micro",
-        "recommended_type":     "t3.nano",
+        "current_type":         current_type,
+        "recommended_type":     recommended_type,
         "status":               "idle",
         "severity":             "medium",
         "confidence":           "HIGH",
         "idle_since":           "2026-02-20T00:00:00Z",
         "last_active":          "2026-02-20T00:00:00Z",
-        "current_cost_usd":     22.77,    # 3× t3.micro @ $7.59/mo each
-        "projected_cost_usd":   11.40,    # 3× t3.nano @ $3.80/mo each
-        "monthly_savings_usd":  11.37,
-        "annual_savings_usd":   136.44,
-        "savings_pct":          49.9,
+        "current_cost_usd":     round({"t3.micro": 7.59, "c5.2xlarge": 248.20, "m5.xlarge": 140.16}.get(current_type, 0), 2),
+        "projected_cost_usd":   round({"t3.nano": 3.80, "c5.large": 62.05, "t3.medium": 30.37}.get(recommended_type, 0), 2),
+        "monthly_savings_usd":  monthly_savings,
+        "annual_savings_usd":   annual,
+        "savings_pct":          round(monthly_savings / max({"t3.micro": 7.59, "c5.2xlarge": 248.20, "m5.xlarge": 140.16}.get(current_type, 1), 1) * 100, 1),
         "cpu_avg_pct":          2.1,
         "cpu_p95_pct":          5.4,
         "memory_avg_pct":       12.3,
         "memory_p95_pct":       15.8,
-        "blast_risk":           "LOW",
+        "blast_risk":           blast_risk,
         "blast_reasons": [
             "ALB 'wastehunter-alb' routes traffic to this ASG (1 hop)",
             "No RDS or stateful dependencies detected",
@@ -100,22 +105,25 @@ FINDINGS: list[dict] = [
             "CPU p95 5.4% — consistently idle across 168 hourly datapoints",
             "Memory avg 12.3% over 7 days (threshold: <20%)",
             "Network I/O avg < 0.5 Mbps",
-            "Datadog agent confirmed on all 3 ASG instances",
+            f"Datadog agent confirmed on {resource_id}",
         ],
         "action":               "CREATE_PR_REQUIRES_APPROVAL",
-        "pr_url":               "https://github.com/darshlukkad/waste-hunter-dummy/pull/1",
-        "pr_number":            1,
+        # ── To reset and re-run PR creation, set pr_url to None ──────────────
+        "pr_url":               None,
+        "pr_number":            None,
         "pr_is_draft":          False,
-        "pr_status":            "open",
-        "pr_branch":            "waste-hunter/downsize-i-029da6afe1826bbba",
-        "files_changed":        ["infra/terraform/main.tf"],
+        "pr_status":            None,
+        "pr_branch":            None,
+        "files_changed":        [],
         "scanned_at":           "2026-02-20T22:00:00Z",
     }
-]
 
-PR_STATUS: dict[str, str] = {
-    "i-029da6afe1826bbba": "open"
-}
+FINDINGS: list[dict] = []
+
+PR_STATUS: dict[str, str] = {}
+
+# Tracks live progress of in-flight PR creation jobs
+PR_PROGRESS: dict[str, dict] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +153,7 @@ def get_findings():
     result = []
     for f in FINDINGS:
         finding = f.copy()
-        finding["pr_status"] = PR_STATUS.get(f["resource_id"], f.get("pr_status", "open"))
+        finding["pr_status"] = PR_STATUS.get(f["resource_id"], f.get("pr_status")) or None
         result.append(finding)
     return {"findings": result, "count": len(result)}
 
@@ -155,7 +163,7 @@ def get_finding(resource_id: str):
     for f in FINDINGS:
         if f["resource_id"] == resource_id:
             finding = f.copy()
-            finding["pr_status"] = PR_STATUS.get(resource_id, f.get("pr_status", "open"))
+            finding["pr_status"] = PR_STATUS.get(resource_id, f.get("pr_status")) or None
             return finding
     raise HTTPException(status_code=404, detail=f"Finding not found: {resource_id}")
 
@@ -180,7 +188,7 @@ def approve_pr(resource_id: str):
         merge = pr.merge(
             commit_title=f"[WasteHunter] Merge: downsize {finding['name']} {finding['current_type']}→{finding['recommended_type']}",
             commit_message=(
-                f"Approved via FinOps Waste Hunter UI.\n"
+                f"Approved via Minimalist UI.\n"
                 f"Savings: ${finding['monthly_savings_usd']}/month (${finding['annual_savings_usd']}/year)\n"
                 f"Blast risk was {finding['blast_risk']} — reviewed and approved by human operator."
             ),
@@ -277,17 +285,23 @@ def trigger_scan(body: ScanRequest = ScanRequest()):
     new_findings: list[dict] = []
     updated_findings: list[dict] = []
 
+    # Dedup by resource_id only — each instance ID is a separate finding,
+    # even if multiple share the same name (e.g. ASG instances).
+    pre_existing_ids = {x["resource_id"] for x in FINDINGS}
+
     for f in detected:
         resource_id = f["resource_id"]
+
         existing = next((x for x in FINDINGS if x["resource_id"] == resource_id), None)
 
         if existing is None:
-            # Brand-new finding — add to FINDINGS
+            # Brand-new instance — add as its own finding and start PR creation
             FINDINGS.append(f)
             PR_STATUS.setdefault(resource_id, f.get("pr_status") or "")
             new_findings.append(f)
+            _maybe_start_pr(f)
         else:
-            # Update CPU metrics and scanned_at on the existing finding
+            # Same resource_id seen before — just refresh metrics
             existing["cpu_avg_pct"]    = f["cpu_avg_pct"]
             existing["cpu_p95_pct"]    = f["cpu_p95_pct"]
             existing["memory_avg_pct"] = f["memory_avg_pct"]
@@ -295,33 +309,50 @@ def trigger_scan(body: ScanRequest = ScanRequest()):
             existing["evidence"]       = f["evidence"]
             updated_findings.append(existing)
 
+    # total_idle = deduplicated logical findings
+    total_idle = len(new_findings) + len(updated_findings)
     return {
         "status":           "ok",
         "scanned_at":       datetime.now(timezone.utc).isoformat(),
         "cpu_threshold_pct": body.cpu_threshold_pct,
         "lookback_minutes": body.lookback_minutes,
-        "total_idle":       len(detected),
+        "total_idle":       total_idle,
         "new_findings":     len(new_findings),
         "updated_findings": len(updated_findings),
         "findings":         detected,
     }
 
 
-@app.post("/api/create_pr/{resource_id}")
-def create_pr(resource_id: str):
-    """
-    Trigger MiniMax IaC rewrite + GitHub PR creation for a specific finding.
-    Updates the in-memory finding with the resulting PR URL and status.
-    """
-    finding = next((f for f in FINDINGS if f["resource_id"] == resource_id), None)
-    if not finding:
-        raise HTTPException(status_code=404, detail="Finding not found")
+@app.get("/api/pr_progress/{resource_id}")
+def get_pr_progress(resource_id: str):
+    """Return current progress of an in-flight PR creation job."""
+    prog = PR_PROGRESS.get(resource_id)
+    if not prog:
+        # If finding already has a PR, treat as done
+        finding = next((f for f in FINDINGS if f["resource_id"] == resource_id), None)
+        if finding and finding.get("pr_url"):
+            return {"step": "done", "done": True, "error": None}
+        return {"step": "idle", "done": False, "error": None}
+    return prog
 
-    if finding.get("pr_url"):
-        raise HTTPException(status_code=400, detail=f"PR already exists: {finding['pr_url']}")
+
+def _run_pr_creation(resource_id: str, finding: dict) -> None:
+    """Background thread: runs PR pipeline and updates PR_PROGRESS + finding."""
+    import traceback
+    print(f"\n[PR {resource_id}] ── Starting PR creation ──")
+    PR_PROGRESS[resource_id] = {"step": "seeding", "done": False, "error": None}
+
+    def set_step(step: str):
+        print(f"[PR {resource_id}] step → {step}")
+        PR_PROGRESS[resource_id]["step"] = step
 
     try:
-        creator = _get_pr_creator()
+        from github_pr.pr_creator import PRCreator
+
+        print(f"[PR {resource_id}] Initialising PRCreator…")
+        creator = PRCreator.from_env()
+        print(f"[PR {resource_id}] PRCreator ready. Calling create_downsize_pr…")
+
         result = creator.create_downsize_pr(
             resource_id         = resource_id,
             from_type           = finding["current_type"],
@@ -331,24 +362,101 @@ def create_pr(resource_id: str):
             blast_risk          = finding.get("blast_risk", "LOW"),
             blast_reasons       = finding.get("blast_reasons", []),
             resource_name       = finding.get("name", resource_id),
+            on_step             = set_step,
         )
+
+        print(f"[PR {resource_id}] ✅ PR created: {result.pr_url}")
+        # Update in-memory finding
+        finding["pr_url"]        = result.pr_url
+        finding["pr_number"]     = result.pr_number
+        finding["pr_branch"]     = result.branch
+        finding["pr_status"]     = "open"
+        finding["pr_is_draft"]   = result.is_draft
+        finding["files_changed"] = result.files_changed
+        PR_STATUS[resource_id]   = "open"
+
+        PR_PROGRESS[resource_id] = {"step": "done", "done": True, "error": None,
+                                     "pr_url": result.pr_url, "pr_number": result.pr_number}
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"PR creation failed: {exc}")
+        err_msg = str(exc)
+        print(f"[PR {resource_id}] ❌ FAILED: {err_msg}")
+        print(f"[PR {resource_id}] Traceback:\n{traceback.format_exc()}")
+        # If a PR already exists for this branch, look it up and treat as success
+        try:
+            from github_pr.pr_creator import PRCreator
+            print(f"[PR {resource_id}] Checking for existing open PR on branch…")
+            creator = PRCreator.from_env()
+            branch = f"waste-hunter/downsize-{resource_id}"
+            pulls = list(creator._repo.get_pulls(state="open", head=f"{creator._repo.owner.login}:{branch}"))
+            if pulls:
+                pr = pulls[0]
+                print(f"[PR {resource_id}] Found existing PR #{pr.number}: {pr.html_url}")
+                finding["pr_url"]    = pr.html_url
+                finding["pr_number"] = pr.number
+                finding["pr_branch"] = branch
+                finding["pr_status"] = "open"
+                PR_STATUS[resource_id] = "open"
+                PR_PROGRESS[resource_id] = {"step": "done", "done": True, "error": None,
+                                             "pr_url": pr.html_url, "pr_number": pr.number}
+                return
+            else:
+                print(f"[PR {resource_id}] No existing PR found on branch {branch}")
+        except Exception as inner_exc:
+            print(f"[PR {resource_id}] Fallback PR lookup also failed: {inner_exc}")
+        PR_PROGRESS[resource_id] = {"step": "error", "done": True, "error": err_msg, "failed_at": time.time()}
 
-    # Update in-memory finding so frontend reflects new PR immediately
-    finding["pr_url"]      = result.pr_url
-    finding["pr_number"]   = result.pr_number
-    finding["pr_branch"]   = result.branch
-    finding["pr_status"]   = "open"
-    finding["pr_is_draft"] = result.is_draft
-    finding["files_changed"] = result.files_changed
-    PR_STATUS[resource_id] = "open"
 
-    return {
-        "status":    "created",
-        "pr_url":    result.pr_url,
-        "pr_number": result.pr_number,
-        "pr_branch": result.branch,
-        "is_draft":  result.is_draft,
-        "message":   f"PR #{result.pr_number} created. Savings: ${result.monthly_savings_usd:.2f}/month pending approval.",
-    }
+def _maybe_start_pr(finding: dict) -> bool:
+    """Auto-start PR creation for any finding that doesn't have a PR yet.
+    Only starts once — does NOT retry failed jobs automatically.
+    Returns True if a background job was started."""
+    rid = finding["resource_id"]
+    if finding.get("pr_url"):
+        return False
+    existing = PR_PROGRESS.get(rid, {})
+    # Already running — don't start another
+    if existing and not existing.get("done"):
+        return False
+    # Completed successfully — don't restart
+    if existing and existing.get("done") and not existing.get("error"):
+        return False
+    # Previously failed — retry only after 60s cooldown to avoid hammering APIs
+    if existing and existing.get("done") and existing.get("error"):
+        last_attempt = existing.get("failed_at", 0)
+        if time.time() - last_attempt < 60:
+            return False
+    # Not started yet, or cooldown elapsed — start (or retry)
+    thread = threading.Thread(target=_run_pr_creation, args=(rid, finding), daemon=True)
+    thread.start()
+    return True
+
+
+@app.post("/api/create_pr/{resource_id}")
+def create_pr(resource_id: str):
+    """
+    Human-approval gate for CREATE_PR_REQUIRES_APPROVAL findings.
+    Also works for CREATE_PR findings if auto-start somehow missed them.
+    Kicks off MiniMax IaC rewrite + GitHub PR creation in a background thread.
+    Returns immediately; poll /api/pr_progress/{resource_id} for status.
+    """
+    finding = next((f for f in FINDINGS if f["resource_id"] == resource_id), None)
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    if finding.get("pr_url"):
+        raise HTTPException(status_code=400, detail=f"PR already exists: {finding['pr_url']}")
+
+    existing = PR_PROGRESS.get(resource_id, {})
+    if existing and not existing.get("done"):
+        return {"status": "in_progress", "message": "PR creation already running"}
+
+    thread = threading.Thread(target=_run_pr_creation, args=(resource_id, finding), daemon=True)
+    thread.start()
+
+    return {"status": "started", "message": "PR creation started. Poll /api/pr_progress for updates."}
+
+
+@app.on_event("startup")
+def auto_start_safe_prs():
+    """No-op on startup — FINDINGS starts empty. Scan Now populates findings and triggers PRs."""
+    pass

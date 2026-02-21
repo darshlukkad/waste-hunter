@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-import { type BlastRisk, type TriggerStatus } from "@/lib/data"
+import { useEffect, useRef, useState } from "react"
+import { type BlastRisk, type TriggerStatus, type Trigger } from "@/lib/data"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,10 +16,84 @@ import {
   XCircle,
   Loader2,
   ScanSearch,
+  GitPullRequest,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFindings } from "@/hooks/use-findings"
-import { triggerScan } from "@/lib/backend"
+import { triggerScan, getPrProgress } from "@/lib/backend"
+import type { PrProgress } from "@/lib/backend"
+
+const PR_STEP_LABELS: Record<PrProgress["step"], string> = {
+  idle:       "Queued",
+  seeding:    "Seeding repo…",
+  reading:    "Reading IaC…",
+  rewriting:  "Rewriting with MiniMax…",
+  committing: "Committing…",
+  done:       "PR ready",
+  error:      "Failed",
+}
+
+function TriggerPrStatus({ trigger }: { trigger: Trigger }) {
+  const [progress, setProgress] = useState<PrProgress | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (trigger.prUrl) return // already has PR, no polling needed
+    if (pollRef.current) return
+
+    // start polling immediately
+    const poll = async () => {
+      try {
+        const prog = await getPrProgress(trigger.resourceId)
+        setProgress(prog)
+        if (prog.done) {
+          clearInterval(pollRef.current!)
+          pollRef.current = null
+        }
+      } catch { /* ignore */ }
+    }
+    void poll()
+    pollRef.current = setInterval(poll, 2000)
+
+    return () => {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+    }
+  }, [trigger.prUrl, trigger.resourceId])
+
+  // PR exists
+  if (trigger.prUrl) {
+    const status = statusConfig[trigger.status]
+    const StatusIcon = status.icon
+    return (
+      <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+        <StatusIcon className={cn("h-3.5 w-3.5", status.className, trigger.status === "analyzing" && "animate-spin")} />
+        <span className={cn("text-xs font-medium", status.className)}>{status.label}</span>
+      </div>
+    )
+  }
+
+  // PR being created — show live step
+  const step = progress?.step ?? "idle"
+  const isError = step === "error"
+  const isDone = step === "done"
+  return (
+    <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+      {isError ? (
+        <XCircle className="h-3.5 w-3.5 text-destructive" />
+      ) : isDone ? (
+        <CheckCircle2 className="h-3.5 w-3.5 text-chart-1" />
+      ) : (
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-chart-2" />
+      )}
+      <span className={cn(
+        "text-xs font-medium",
+        isError ? "text-destructive" : isDone ? "text-chart-1" : "text-chart-2"
+      )}>
+        {PR_STEP_LABELS[step]}
+      </span>
+    </div>
+  )
+}
 
 const riskConfig: Record<BlastRisk, { label: string; className: string }> = {
   SAFE: {
@@ -89,7 +163,9 @@ export function TriggersList() {
       setScanResult(
         result.total_idle === 0
           ? "All instances healthy — no idle resources detected."
-          : `Found ${result.total_idle} idle instance(s). ${result.new_findings} new finding(s) added.`
+          : result.new_findings === 0
+            ? `${result.total_idle} idle resource(s) confirmed — ${result.updated_findings} existing finding(s) updated.`
+            : `Found ${result.new_findings} new idle resource(s). ${result.updated_findings} existing finding(s) refreshed.`
       )
       refetch()
     } catch (err) {
@@ -164,8 +240,6 @@ export function TriggersList() {
         )}
         {triggers.map((trigger) => {
           const risk = riskConfig[trigger.blastRisk]
-          const status = statusConfig[trigger.status]
-          const StatusIcon = status.icon
           const ServiceIcon = serviceIcons[trigger.service] || Server
 
           return (
@@ -213,19 +287,8 @@ export function TriggersList() {
                 </div>
               </div>
 
-              {/* Status */}
-              <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
-                <StatusIcon
-                  className={cn(
-                    "h-3.5 w-3.5",
-                    status.className,
-                    trigger.status === "analyzing" && "animate-spin"
-                  )}
-                />
-                <span className={cn("text-xs font-medium", status.className)}>
-                  {status.label}
-                </span>
-              </div>
+              {/* Live workflow status */}
+              <TriggerPrStatus trigger={trigger} />
 
               {/* Savings */}
               <div className="shrink-0 text-right">

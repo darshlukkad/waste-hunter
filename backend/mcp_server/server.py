@@ -1,5 +1,5 @@
 """
-FinOps Waste Hunter — Datadog MCP Server
+Minimalist — Datadog MCP Server
 =========================================
 Exposes Datadog-sourced telemetry as MCP tools so the Bedrock agent can call
 them in a structured tool-use loop.

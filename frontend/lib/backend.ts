@@ -133,6 +133,18 @@ export async function createPr(resourceId: string): Promise<BackendActionRespons
   })
 }
 
+export interface PrProgress {
+  step: "idle" | "seeding" | "reading" | "rewriting" | "committing" | "done" | "error"
+  done: boolean
+  error: string | null
+  pr_url?: string
+  pr_number?: number
+}
+
+export async function getPrProgress(resourceId: string): Promise<PrProgress> {
+  return fetchJson<PrProgress>(`/api/pr_progress/${resourceId}`)
+}
+
 export async function approveFinding(resourceId: string): Promise<BackendActionResponse> {
   return fetchJson<BackendActionResponse>(`/api/approve/${resourceId}`, {
     method: "POST",
@@ -294,6 +306,7 @@ export function mapFindingToTrigger(finding: BackendFinding): Trigger {
     copilotSummary: buildCopilotSummary(finding),
     prStatus: finding.pr_status,
     workflow: buildWorkflow(finding),
+    action: finding.action,
   }
 
   return trigger
