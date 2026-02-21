@@ -134,7 +134,7 @@ export async function createPr(resourceId: string): Promise<BackendActionRespons
 }
 
 export interface PrProgress {
-  step: "idle" | "seeding" | "reading" | "rewriting" | "committing" | "done" | "error"
+  step: "idle" | "queued" | "seeding" | "reading" | "rewriting" | "committing" | "done" | "error"
   done: boolean
   error: string | null
   pr_url?: string
@@ -307,6 +307,13 @@ export function mapFindingToTrigger(finding: BackendFinding): Trigger {
     prStatus: finding.pr_status,
     workflow: buildWorkflow(finding),
     action: finding.action,
+    cpuAvgPct: finding.cpu_avg_pct,
+    cpuP95Pct: finding.cpu_p95_pct,
+    memoryAvgPct: finding.memory_avg_pct,
+    memoryP95Pct: finding.memory_p95_pct,
+    currentCostUsd: finding.current_cost_usd,
+    projectedCostUsd: finding.projected_cost_usd,
+    savingsPct: finding.savings_pct,
   }
 
   return trigger

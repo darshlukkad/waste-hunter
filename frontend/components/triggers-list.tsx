@@ -16,15 +16,16 @@ import {
   XCircle,
   Loader2,
   ScanSearch,
-  GitPullRequest,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFindings } from "@/hooks/use-findings"
 import { triggerScan, getPrProgress } from "@/lib/backend"
 import type { PrProgress } from "@/lib/backend"
+import { useProgressContext } from "@/contexts/findings-context"
 
 const PR_STEP_LABELS: Record<PrProgress["step"], string> = {
   idle:       "Queued",
+  queued:     "Queued…",
   seeding:    "Seeding repo…",
   reading:    "Reading IaC…",
   rewriting:  "Rewriting with MiniMax…",
@@ -34,14 +35,14 @@ const PR_STEP_LABELS: Record<PrProgress["step"], string> = {
 }
 
 function TriggerPrStatus({ trigger }: { trigger: Trigger }) {
-  const [progress, setProgress] = useState<PrProgress | null>(null)
+  const getProgress = useProgressContext()
+  const [progress, setProgress] = useState<PrProgress | null>(() => getProgress(trigger.resourceId) ?? null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    if (trigger.prUrl) return // already has PR, no polling needed
+    if (trigger.prUrl) return
     if (pollRef.current) return
 
-    // start polling immediately
     const poll = async () => {
       try {
         const prog = await getPrProgress(trigger.resourceId)
@@ -60,7 +61,6 @@ function TriggerPrStatus({ trigger }: { trigger: Trigger }) {
     }
   }, [trigger.prUrl, trigger.resourceId])
 
-  // PR exists
   if (trigger.prUrl) {
     const status = statusConfig[trigger.status]
     const StatusIcon = status.icon
@@ -72,7 +72,6 @@ function TriggerPrStatus({ trigger }: { trigger: Trigger }) {
     )
   }
 
-  // PR being created — show live step
   const step = progress?.step ?? "idle"
   const isError = step === "error"
   const isDone = step === "done"
@@ -96,53 +95,21 @@ function TriggerPrStatus({ trigger }: { trigger: Trigger }) {
 }
 
 const riskConfig: Record<BlastRisk, { label: string; className: string }> = {
-  SAFE: {
-    label: "SAFE",
-    className: "bg-chart-1/15 text-chart-1 border-chart-1/30",
-  },
-  LOW: {
-    label: "LOW",
-    className: "bg-chart-2/15 text-chart-2 border-chart-2/30",
-  },
-  MEDIUM: {
-    label: "MEDIUM",
-    className: "bg-chart-3/15 text-chart-3 border-chart-3/30",
-  },
-  CRITICAL: {
-    label: "CRITICAL",
-    className: "bg-destructive/15 text-destructive border-destructive/30",
-  },
+  SAFE:     { label: "SAFE",     className: "bg-chart-1/15 text-chart-1 border-chart-1/30" },
+  LOW:      { label: "LOW",      className: "bg-chart-2/15 text-chart-2 border-chart-2/30" },
+  MEDIUM:   { label: "MEDIUM",   className: "bg-chart-3/15 text-chart-3 border-chart-3/30" },
+  CRITICAL: { label: "CRITICAL", className: "bg-destructive/15 text-destructive border-destructive/30" },
 }
 
 const statusConfig: Record<
   TriggerStatus,
   { label: string; icon: typeof Clock; className: string }
 > = {
-  detected: {
-    label: "Detected",
-    icon: Clock,
-    className: "text-muted-foreground",
-  },
-  analyzing: {
-    label: "Analyzing",
-    icon: Loader2,
-    className: "text-chart-3",
-  },
-  pr_ready: {
-    label: "PR Ready",
-    icon: ArrowRight,
-    className: "text-chart-2",
-  },
-  approved: {
-    label: "Approved",
-    icon: CheckCircle2,
-    className: "text-chart-1",
-  },
-  rejected: {
-    label: "Rejected",
-    icon: XCircle,
-    className: "text-destructive",
-  },
+  detected:  { label: "Detected",  icon: Clock,       className: "text-muted-foreground" },
+  analyzing: { label: "Analyzing", icon: Loader2,      className: "text-chart-3" },
+  pr_ready:  { label: "PR Ready",  icon: ArrowRight,   className: "text-chart-2" },
+  approved:  { label: "Approved",  icon: CheckCircle2, className: "text-chart-1" },
+  rejected:  { label: "Rejected",  icon: XCircle,      className: "text-destructive" },
 }
 
 const serviceIcons: Record<string, typeof Server> = {
@@ -235,7 +202,7 @@ export function TriggersList() {
       <div className="flex flex-col gap-2">
         {triggers.length === 0 && (
           <div className="rounded-lg border border-dashed border-border py-8 text-center text-xs text-muted-foreground">
-            No findings yet. The next backend scan will populate this list.
+            No findings yet. Click <span className="font-medium text-foreground">Scan Now</span> to detect idle resources.
           </div>
         )}
         {triggers.map((trigger) => {
@@ -264,10 +231,7 @@ export function TriggersList() {
                   </span>
                   <Badge
                     variant="outline"
-                    className={cn(
-                      "shrink-0 text-[10px] font-semibold px-1.5 py-0",
-                      risk.className
-                    )}
+                    className={cn("shrink-0 text-[10px] font-semibold px-1.5 py-0", risk.className)}
                   >
                     {risk.label}
                   </Badge>
@@ -277,13 +241,15 @@ export function TriggersList() {
                     <Globe className="h-3 w-3" />
                     {trigger.region}
                   </span>
-                  <span className="font-mono">
-                    {trigger.currentInstance}
-                  </span>
+                  <span className="font-mono">{trigger.currentInstance}</span>
                   <ArrowRight className="h-3 w-3 text-chart-1" />
-                  <span className="font-mono font-medium text-foreground">
-                    {trigger.recommendedInstance}
-                  </span>
+                  <span className="font-mono font-medium text-foreground">{trigger.recommendedInstance}</span>
+                  {trigger.cpuAvgPct !== undefined && (
+                    <>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span className="text-muted-foreground">CPU {trigger.cpuAvgPct.toFixed(1)}% avg</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -294,10 +260,11 @@ export function TriggersList() {
               <div className="shrink-0 text-right">
                 <p className="text-sm font-bold text-chart-1">
                   -${trigger.monthlySavings}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    /mo
-                  </span>
+                  <span className="text-xs font-normal text-muted-foreground">/mo</span>
                 </p>
+                {trigger.savingsPct !== undefined && (
+                  <p className="text-[11px] text-muted-foreground">{trigger.savingsPct.toFixed(0)}% off</p>
+                )}
               </div>
 
               {/* Arrow */}

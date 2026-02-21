@@ -49,6 +49,14 @@ export interface Trigger {
   prStatus?: "open" | "merged" | "closed"
   workflow?: WorkflowState
   action?: string
+  // Utilization metrics (from scanner)
+  cpuAvgPct?: number
+  cpuP95Pct?: number
+  memoryAvgPct?: number
+  memoryP95Pct?: number
+  currentCostUsd?: number
+  projectedCostUsd?: number
+  savingsPct?: number
 }
 
 export interface SavingsOverview {

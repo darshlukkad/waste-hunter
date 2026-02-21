@@ -340,7 +340,8 @@ def _run_pr_creation(resource_id: str, finding: dict) -> None:
     """Background thread: runs PR pipeline and updates PR_PROGRESS + finding."""
     import traceback
     print(f"\n[PR {resource_id}] ── Starting PR creation ──")
-    PR_PROGRESS[resource_id] = {"step": "seeding", "done": False, "error": None}
+    # Start as queued — will become seeding once the GitHub lock is acquired
+    PR_PROGRESS[resource_id] = {"step": "queued", "done": False, "error": None}
 
     def set_step(step: str):
         print(f"[PR {resource_id}] step → {step}")
